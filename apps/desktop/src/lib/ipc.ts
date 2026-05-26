@@ -42,6 +42,14 @@ export async function defaultHotkeyLabel(): Promise<string> {
 export async function registerHotkey(combo: string): Promise<void> {
   await invoke("register_hotkey", { combo });
 }
+export async function openAccessibilitySettings(): Promise<void> {
+  await invoke("open_accessibility_settings");
+}
+
+/** True when a register_hotkey rejection looks like missing macOS Accessibility. */
+export function isAccessibilityError(err: unknown): boolean {
+  return typeof err === "string" && err.includes("ACCESSIBILITY_DENIED");
+}
 
 /**
  * Stream a chat completion. The Rust side proxies Anthropic streaming and

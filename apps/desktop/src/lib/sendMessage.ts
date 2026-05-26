@@ -195,6 +195,17 @@ export async function sendMessage(text: string) {
           if (acc) useApp.getState().say(acc, 999_999);
         }
         break;
+      case "tool_use":
+        if (chunk.name === "web_search") {
+          useApp.getState().markMessageSearched(buddyId);
+        }
+        break;
+      case "citation":
+        useApp.getState().addCitation(buddyId, {
+          url: chunk.url,
+          title: chunk.title || chunk.url,
+        });
+        break;
       case "done": {
         useApp.getState().setMessageStatus(buddyId, "complete");
         useApp.getState().setStreaming(false);

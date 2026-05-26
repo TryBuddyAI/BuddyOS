@@ -57,6 +57,17 @@ pub async fn stream_chat(
         "stream": true,
         "system": SYSTEM_PROMPT,
         "messages": messages,
+        // First-party web search — lets BUDDY answer questions about recent
+        // events, weather, prices, sports, news, etc. with citations.
+        // The model decides when to call it; we cap at 3 uses per turn so a
+        // confused chain of searches can't burn a token budget.
+        "tools": [
+            {
+                "type": "web_search_20250305",
+                "name": "web_search",
+                "max_uses": 3
+            }
+        ],
     });
 
     let client = reqwest::Client::new();
@@ -134,33 +145,66 @@ fn handle_sse_event(app: &AppHandle, request_id: &str, raw: &str) {
         Err(_) => return,
     };
     let kind = json.get("type").and_then(|v| v.as_str()).unwrap_or("");
-    if kind == "content_block_delta" {
-        if let Some(delta) = json.get("delta") {
+
+    match kind {
+        "content_block_delta" => {
+            let Some(delta) = json.get("delta") else { return };
             let delta_type = delta.get("type").and_then(|v| v.as_str()).unwrap_or("");
-            if delta_type == "text_delta" {
-                if let Some(text) = delta.get("text").and_then(|v| v.as_str()) {
-                    let _ = app.emit(
-                        &format!("chat-chunk:{request_id}"),
-                        ChatChunk::TextDelta {
-                            text: text.to_string(),
-                        },
-                    );
+            match delta_type {
+                "text_delta" => {
+                    if let Some(text) = delta.get("text").and_then(|v| v.as_str()) {
+                        let _ = app.emit(
+                            &format!("chat-chunk:{request_id}"),
+                            ChatChunk::TextDelta {
+                                text: text.to_string(),
+                            },
+                        );
+                    }
                 }
+                // web_search and other server tools attach citations to text
+                // blocks as they stream. Each citation has url + title.
+                "citations_delta" => {
+                    if let Some(citation) = delta.get("citation") {
+                        let url = citation
+                            .get("url")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("")
+                            .to_string();
+                        let title = citation
+                            .get("title")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("")
+                            .to_string();
+                        if !url.is_empty() {
+                            let _ = app.emit(
+                                &format!("chat-chunk:{request_id}"),
+                                ChatChunk::Citation { url, title },
+                            );
+                        }
+                    }
+                }
+                _ => {}
             }
         }
-    } else if kind == "content_block_start" {
-        if let Some(cb) = json.get("content_block") {
-            if cb.get("type").and_then(|v| v.as_str()) == Some("tool_use") {
-                if let Some(name) = cb.get("name").and_then(|v| v.as_str()) {
-                    let _ = app.emit(
-                        &format!("chat-chunk:{request_id}"),
-                        ChatChunk::ToolUse {
-                            name: name.to_string(),
-                        },
-                    );
+        "content_block_start" => {
+            let Some(cb) = json.get("content_block") else { return };
+            let cb_type = cb.get("type").and_then(|v| v.as_str()).unwrap_or("");
+            match cb_type {
+                // Client-side tool call (we don't have any of these yet).
+                "tool_use" | "server_tool_use" => {
+                    if let Some(name) = cb.get("name").and_then(|v| v.as_str()) {
+                        let _ = app.emit(
+                            &format!("chat-chunk:{request_id}"),
+                            ChatChunk::ToolUse {
+                                name: name.to_string(),
+                            },
+                        );
+                    }
                 }
+                _ => {}
             }
         }
+        _ => {}
     }
 }
 

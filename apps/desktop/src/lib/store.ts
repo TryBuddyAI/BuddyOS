@@ -11,6 +11,11 @@ export type Mood =
   | "dissolving"
   | "assembling";
 
+export type Citation = {
+  url: string;
+  title: string;
+};
+
 export type ChatMessage = {
   id: string;
   role: "user" | "buddy";
@@ -18,6 +23,10 @@ export type ChatMessage = {
   timestamp: number;
   status: "pending" | "streaming" | "complete" | "error";
   error?: string;
+  /** True when BUDDY hit the web_search tool while answering this message. */
+  searched?: boolean;
+  /** Citations from web_search, deduped by url. */
+  citations?: Citation[];
 };
 
 type Persisted = {
@@ -42,6 +51,8 @@ type AppState = Persisted & {
   silence: () => void;
   pushMessage: (m: ChatMessage) => void;
   appendBuddyChunk: (id: string, chunk: string) => void;
+  markMessageSearched: (id: string) => void;
+  addCitation: (id: string, citation: Citation) => void;
   setMessageStatus: (
     id: string,
     status: ChatMessage["status"],
@@ -110,6 +121,23 @@ export const useApp = create<AppState>()(
           messages: s.messages.map((m) =>
             m.id === id ? { ...m, text: m.text + chunk } : m,
           ),
+        })),
+      markMessageSearched: (id) =>
+        set((s) => ({
+          messages: s.messages.map((m) =>
+            m.id === id ? { ...m, searched: true } : m,
+          ),
+        })),
+      addCitation: (id, citation) =>
+        set((s) => ({
+          messages: s.messages.map((m) => {
+            if (m.id !== id) return m;
+            const existing = m.citations ?? [];
+            // Dedupe by url so the model can re-cite the same source in
+            // multiple sentences without spamming pills.
+            if (existing.some((c) => c.url === citation.url)) return m;
+            return { ...m, citations: [...existing, citation] };
+          }),
         })),
       setMessageStatus: (id, status, error) =>
         set((s) => ({

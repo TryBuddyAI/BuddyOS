@@ -8,6 +8,8 @@ import {
   completeOnboarding,
   defaultHotkeyLabel,
   hasApiKey,
+  isAccessibilityError,
+  openAccessibilitySettings,
   registerHotkey,
   setApiKey,
 } from "../lib/ipc";
@@ -47,13 +49,20 @@ export function OnboardingWindow() {
   const setDemoMode = useApp((s) => s.setDemoMode);
   const setStoreHotkey = useApp((s) => s.setHotkey);
 
+  const [needsAccessibility, setNeedsAccessibility] = useState(false);
   const applyHotkey = async (next: string) => {
     setCombo(next);
     setComboError(null);
+    setNeedsAccessibility(false);
     try {
       await registerHotkey(next);
     } catch (e) {
-      setComboError(String(e));
+      if (isAccessibilityError(e)) {
+        setNeedsAccessibility(true);
+        setComboError(null);
+      } else {
+        setComboError(String(e));
+      }
     }
   };
 
@@ -134,6 +143,24 @@ export function OnboardingWindow() {
                   <p className="text-[12px] text-[var(--accent-warm)]">
                     {comboError}
                   </p>
+                )}
+                {needsAccessibility && (
+                  <div className="glass-crystal mt-2 max-w-[420px] rounded-2xl p-4 text-left">
+                    <p className="text-[13px] font-semibold text-white">
+                      macOS needs Accessibility permission
+                    </p>
+                    <p className="mt-1 text-[12px] leading-[1.5] text-[var(--text-dim)]">
+                      Global hotkeys are gated by macOS. Click below to open
+                      System Settings → Privacy → Accessibility, then enable
+                      BUDDY in the list. Come back and try your combo again.
+                    </p>
+                    <button
+                      onClick={() => openAccessibilitySettings().catch(() => {})}
+                      className="focus-ring mt-3 inline-flex h-9 items-center rounded-full bg-[var(--accent)] px-3 text-[12px] font-semibold text-[var(--canvas)] hover:opacity-90"
+                    >
+                      Open System Settings
+                    </button>
+                  </div>
                 )}
                 <button
                   onClick={() => applyHotkey(defaultCombo)}

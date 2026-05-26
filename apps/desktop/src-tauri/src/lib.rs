@@ -39,6 +39,7 @@ fn toggle_main(app: &AppHandle) {
         match win.is_visible() {
             Ok(true) => {
                 let _ = win.hide();
+                let _ = app.emit("summon-hidden", ());
             }
             _ => {
                 let _ = win.show();
@@ -62,6 +63,7 @@ fn show_summon(app: AppHandle) {
 fn hide_summon(app: AppHandle) {
     if let Some(win) = app.get_webview_window("main") {
         let _ = win.hide();
+        let _ = app.emit("summon-hidden", ());
     }
 }
 
@@ -176,11 +178,38 @@ fn register_hotkey(
         let _ = shortcut_mgr.unregister(prev);
     }
 
-    shortcut_mgr
-        .register(new_sc)
-        .map_err(|e| format!("Registration failed: {e}"))?;
+    shortcut_mgr.register(new_sc).map_err(|e| {
+        // On macOS, the most common cause of registration failure is missing
+        // Accessibility permission. Surface a typed error so the React layer
+        // can show the "Grant Accessibility" prompt instead of a raw message.
+        let raw = e.to_string();
+        #[cfg(target_os = "macos")]
+        {
+            if raw.to_lowercase().contains("accessibility")
+                || raw.to_lowercase().contains("permission")
+                || raw.to_lowercase().contains("denied")
+            {
+                return format!("ACCESSIBILITY_DENIED: {raw}");
+            }
+        }
+        format!("Registration failed: {raw}")
+    })?;
 
     *guard = Some(new_sc);
+    Ok(())
+}
+
+/// Open macOS System Settings → Privacy & Security → Accessibility so the
+/// user can enable the hotkey permission. No-op on non-macOS.
+#[tauri::command]
+fn open_accessibility_settings() -> Result<(), String> {
+    #[cfg(target_os = "macos")]
+    {
+        std::process::Command::new("open")
+            .arg("x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")
+            .spawn()
+            .map_err(|e| format!("Couldn't open System Settings: {e}"))?;
+    }
     Ok(())
 }
 
@@ -291,6 +320,7 @@ pub fn run() {
             quit_app,
             default_hotkey_label,
             register_hotkey,
+            open_accessibility_settings,
             chat::stream_chat,
             chat::set_api_key,
             chat::has_api_key,
@@ -344,6 +374,7 @@ pub fn run() {
                 if window.label() == "main" {
                     api.prevent_close();
                     let _ = window.hide();
+                    let _ = window.emit("summon-hidden", ());
                 }
             }
         })

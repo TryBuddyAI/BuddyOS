@@ -3,7 +3,7 @@ import { listen } from "@tauri-apps/api/event";
 import { SummonWindow } from "./windows/Summon";
 import { OnboardingWindow } from "./windows/Onboarding";
 import { useApp } from "./lib/store";
-import { completeOnboarding, hasApiKey } from "./lib/ipc";
+import { completeOnboarding, hasApiKey, registerHotkey } from "./lib/ipc";
 
 /**
  * Single-window router. We use one Tauri window for the whole app:
@@ -32,6 +32,18 @@ export default function App() {
         // ignore — Rust may not be ready yet
       }
       if (useApp.getState().hasOnboarded) {
+        // Re-register the user's custom hotkey. Rust boots with the platform
+        // default; if the user picked something else during onboarding, we
+        // swap in their combo here. Failures are non-fatal — the default
+        // remains active.
+        const persistedHotkey = useApp.getState().hotkey;
+        if (persistedHotkey) {
+          try {
+            await registerHotkey(persistedHotkey);
+          } catch (e) {
+            console.warn("Failed to re-register persisted hotkey:", e);
+          }
+        }
         // Already onboarded — collapse the window to overlay size and hide.
         try {
           await completeOnboarding();
