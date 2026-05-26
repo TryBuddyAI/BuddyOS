@@ -67,22 +67,33 @@ fn hide_summon(app: AppHandle) {
     }
 }
 
-/// Called when the user clicks "Start BUDDY" at the end of onboarding.
-/// Converts the window from a normal onboarding window into a small floating
-/// overlay and KEEPS IT VISIBLE so the user sees BUDDY immediately.
+/// Called when the user clicks "Start BUDDY" at the end of onboarding,
+/// AND on every subsequent launch where they're already onboarded.
+///
+/// - `first_time = true` → center the window (user is seeing BUDDY for the
+///   first time, no remembered position).
+/// - `first_time = false` → trust the saved position from
+///   tauri-plugin-window-state; only adjust size + overlay flags.
 #[tauri::command]
-fn complete_onboarding(app: AppHandle) -> Result<(), String> {
-    if let Some(win) = app.get_webview_window("main") {
-        // Compact floating BUDDY: just enough room for the mascot + pill.
-        let _ = win.set_size(LogicalSize::new(380.0, 440.0));
-        let _ = win.set_always_on_top(true);
-        let _ = win.set_skip_taskbar(true);
+fn complete_onboarding(app: AppHandle, first_time: Option<bool>) -> Result<(), String> {
+    let Some(win) = app.get_webview_window("main") else {
+        // The "main" window should always exist by the time this is called
+        // from React. If it doesn't, that's a real problem worth surfacing.
+        return Err("main window not found".into());
+    };
+    let first = first_time.unwrap_or(false);
+
+    // Compact floating BUDDY: just enough room for the mascot + pill.
+    let _ = win.set_size(LogicalSize::new(380.0, 440.0));
+    let _ = win.set_always_on_top(true);
+    let _ = win.set_skip_taskbar(true);
+    if first {
         let _ = win.center();
-        let _ = win.show();
-        let _ = win.set_focus();
-        let _ = app.emit("onboarding-complete", ());
-        let _ = app.emit("summon-shown", ());
     }
+    let _ = win.show();
+    let _ = win.set_focus();
+    let _ = app.emit("onboarding-complete", ());
+    let _ = app.emit("summon-shown", ());
     Ok(())
 }
 

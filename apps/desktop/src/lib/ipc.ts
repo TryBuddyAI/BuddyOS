@@ -19,8 +19,8 @@ export async function showSummon() {
 export async function hideSummon() {
   await invoke("hide_summon");
 }
-export async function completeOnboarding() {
-  await invoke("complete_onboarding");
+export async function completeOnboarding(firstTime: boolean = false) {
+  await invoke("complete_onboarding", { firstTime });
 }
 /** Open settings inline (in the same window). The Rust core just shows the
  * window and emits `open-settings`; the React layer renders the panel. */
@@ -35,6 +35,9 @@ export async function setApiKey(provider: string, key: string) {
 }
 export async function hasApiKey(provider: string): Promise<boolean> {
   return invoke("has_api_key", { provider });
+}
+export async function clearApiKey(provider: string): Promise<void> {
+  await invoke("clear_api_key", { provider });
 }
 export async function defaultHotkeyLabel(): Promise<string> {
   return invoke("default_hotkey_label");

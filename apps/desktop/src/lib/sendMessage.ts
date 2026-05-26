@@ -7,6 +7,7 @@ import {
   streamChat,
   type ChatTurn,
 } from "./ipc";
+import { speak } from "./speak";
 
 /**
  * Slash commands that bypass the model entirely. Typed into the input bar
@@ -159,7 +160,10 @@ export async function sendMessage(text: string) {
     useApp.getState().setStreaming(false);
     useApp.getState().setMood("idle");
     const final = useApp.getState().messages.find((m) => m.id === buddyId)?.text;
-    if (final) useApp.getState().say(final, 6000);
+    if (final) {
+      useApp.getState().say(final, 6000);
+      speak(buddyId, final);
+    }
     return;
   }
 
@@ -213,7 +217,10 @@ export async function sendMessage(text: string) {
         const finalText = useApp
           .getState()
           .messages.find((m) => m.id === buddyId)?.text;
-        if (finalText) useApp.getState().say(finalText, 6000);
+        if (finalText) {
+          useApp.getState().say(finalText, 6000);
+          speak(buddyId, finalText);
+        }
         break;
       }
       case "error":

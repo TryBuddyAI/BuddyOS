@@ -34,12 +34,15 @@ type Persisted = {
   hasOnboarded: boolean;
   demoMode: boolean;
   qualityTier: "ultra" | "high" | "medium" | "low";
+  voiceEnabled: boolean;
   history: ChatMessage[][];
 };
 
 type AppState = Persisted & {
   mood: Mood;
   isStreaming: boolean;
+  isSpeaking: boolean;
+  audioLevel: number;
   currentMessage: string | null;
   messageId: string | null;
   messages: ChatMessage[];
@@ -67,6 +70,7 @@ type AppState = Persisted & {
   setOnboarded: (b: boolean) => void;
   setDemoMode: (b: boolean) => void;
   setQualityTier: (t: Persisted["qualityTier"]) => void;
+  setVoiceEnabled: (b: boolean) => void;
 };
 
 const messageTimers = new Map<string, ReturnType<typeof setTimeout>>();
@@ -78,10 +82,13 @@ export const useApp = create<AppState>()(
       hasOnboarded: false,
       demoMode: false,
       qualityTier: "high",
+      voiceEnabled: false,
       history: [],
 
       mood: "idle",
       isStreaming: false,
+      isSpeaking: false,
+      audioLevel: 0,
       currentMessage: null,
       messageId: null,
       messages: [],
@@ -168,6 +175,7 @@ export const useApp = create<AppState>()(
       setOnboarded: (hasOnboarded) => set({ hasOnboarded }),
       setDemoMode: (demoMode) => set({ demoMode }),
       setQualityTier: (qualityTier) => set({ qualityTier }),
+      setVoiceEnabled: (voiceEnabled) => set({ voiceEnabled }),
     }),
     {
       name: "buddy-app-state",
@@ -178,6 +186,7 @@ export const useApp = create<AppState>()(
           hasOnboarded: s.hasOnboarded,
           demoMode: s.demoMode,
           qualityTier: s.qualityTier,
+          voiceEnabled: s.voiceEnabled,
           history: s.history.slice(-20),
         }) satisfies Persisted,
       skipHydration: true,

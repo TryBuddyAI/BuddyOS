@@ -71,7 +71,9 @@ export function OnboardingWindow() {
     if (combo) setStoreHotkey(combo);
     setOnboarded(true);
     try {
-      await completeOnboarding();
+      // First time finishing onboarding — center the window. Subsequent
+      // App.tsx-driven re-entries respect the user's saved position.
+      await completeOnboarding(true);
     } catch (e) {
       console.warn("complete_onboarding failed", e);
     }

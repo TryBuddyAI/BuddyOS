@@ -1,16 +1,34 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ArrowLeft, LogOut } from "lucide-react";
+import {
+  ArrowLeft,
+  LogOut,
+  Trash2,
+  KeyRound,
+  Sparkles,
+  RefreshCw,
+  Volume2,
+  VolumeX,
+} from "lucide-react";
 import {
   defaultHotkeyLabel,
   hasApiKey,
   registerHotkey,
   setApiKey,
   quitApp,
+  clearApiKey,
 } from "../../lib/ipc";
 import { useApp } from "../../lib/store";
 import { HotkeyCapture } from "../Onboarding/HotkeyCapture";
+
+type Tier = "ultra" | "high" | "medium" | "low";
+const TIERS: { value: Tier; label: string; hint: string }[] = [
+  { value: "ultra", label: "Ultra", hint: "Max poly count + bloom + sparkles" },
+  { value: "high", label: "High", hint: "Default — looks great on M-series" },
+  { value: "medium", label: "Medium", hint: "Drop sparkles + halve segments" },
+  { value: "low", label: "Low", hint: "Minimal — old laptops + battery saver" },
+];
 
 /**
  * Inline settings panel — slides over the summon view inside the same window.
@@ -22,6 +40,14 @@ export function SettingsPanel() {
   const setDemoMode = useApp((s) => s.setDemoMode);
   const storeHotkey = useApp((s) => s.hotkey);
   const demoMode = useApp((s) => s.demoMode);
+  const qualityTier = useApp((s) => s.qualityTier);
+  const setQualityTier = useApp((s) => s.setQualityTier);
+  const voiceEnabled = useApp((s) => s.voiceEnabled);
+  const setVoiceEnabled = useApp((s) => s.setVoiceEnabled);
+  const newSession = useApp((s) => s.newSession);
+  const setOnboarded = useApp((s) => s.setOnboarded);
+  const messageCount = useApp((s) => s.messages.length);
+  const historyCount = useApp((s) => s.history.length);
 
   const [defaultCombo, setDefaultCombo] = useState("");
   const [combo, setCombo] = useState("");
@@ -30,6 +56,9 @@ export function SettingsPanel() {
   const [apiKey, setApiKeyInput] = useState("");
   const [saving, setSaving] = useState(false);
   const [savedMsg, setSavedMsg] = useState<string | null>(null);
+  const [removingKey, setRemovingKey] = useState(false);
+  const [confirmHistoryWipe, setConfirmHistoryWipe] = useState(false);
+  const [confirmReset, setConfirmReset] = useState(false);
 
   useEffect(() => {
     defaultHotkeyLabel().then((label) => {
@@ -66,6 +95,45 @@ export function SettingsPanel() {
     }
   };
 
+  const removeKey = async () => {
+    setRemovingKey(true);
+    setSavedMsg(null);
+    try {
+      await clearApiKey("anthropic");
+      setKeyPresent(false);
+      setSavedMsg("Key removed");
+    } catch (e) {
+      setSavedMsg(String(e));
+    } finally {
+      setRemovingKey(false);
+    }
+  };
+
+  const wipeHistory = () => {
+    // Two-step confirmation so a stray click can't delete everything.
+    if (!confirmHistoryWipe) {
+      setConfirmHistoryWipe(true);
+      setTimeout(() => setConfirmHistoryWipe(false), 4000);
+      return;
+    }
+    // Wipe current session AND archived ones by resetting the store fields.
+    useApp.setState({ messages: [], history: [] });
+    newSession();
+    setConfirmHistoryWipe(false);
+    setSavedMsg("History wiped");
+  };
+
+  const resetOnboarding = () => {
+    if (!confirmReset) {
+      setConfirmReset(true);
+      setTimeout(() => setConfirmReset(false), 4000);
+      return;
+    }
+    setOnboarded(false);
+    setSettingsOpen(false);
+    // App.tsx renders OnboardingWindow when hasOnboarded becomes false.
+  };
+
   return (
     <div className="glass-crystal absolute inset-3 z-30 flex flex-col overflow-hidden rounded-2xl bg-[var(--canvas)]/95">
       <div className="drag-region flex items-center justify-between border-b border-white/[0.06] px-4 py-3">
@@ -82,7 +150,8 @@ export function SettingsPanel() {
         <span className="w-10" />
       </div>
 
-      <div className="no-drag flex-1 space-y-5 overflow-y-auto px-5 py-5">
+      <div className="no-drag flex-1 space-y-6 overflow-y-auto px-5 py-5">
+        {/* HOTKEY */}
         <section>
           <p className="eyebrow">HOTKEY</p>
           <p className="mt-1 text-[12.5px] text-[var(--text-dim)]">
@@ -101,6 +170,7 @@ export function SettingsPanel() {
           </div>
         </section>
 
+        {/* ACCOUNT */}
         <section>
           <p className="eyebrow">ACCOUNT</p>
           <p className="mt-1 text-[12.5px] text-[var(--text-dim)]">
@@ -127,18 +197,126 @@ export function SettingsPanel() {
             </button>
           </div>
           {savedMsg && (
-            <p className="mt-2 text-[12px] text-[var(--accent)]">
-              {savedMsg}
-            </p>
+            <p className="mt-2 text-[12px] text-[var(--accent)]">{savedMsg}</p>
           )}
+          <div className="mt-3 flex flex-wrap gap-3">
+            <button
+              onClick={() => setDemoMode(!demoMode)}
+              className="focus-ring text-[12px] text-[var(--text-dim)] underline-offset-2 hover:text-white hover:underline"
+            >
+              {demoMode ? "Disable demo mode" : "Force demo mode"}
+            </button>
+            {keyPresent && (
+              <button
+                onClick={removeKey}
+                disabled={removingKey}
+                className="focus-ring inline-flex items-center gap-1 text-[12px] text-[var(--accent-warm)] underline-offset-2 hover:underline disabled:opacity-50"
+              >
+                <KeyRound size={11} />
+                {removingKey ? "Removing…" : "Remove API key"}
+              </button>
+            )}
+          </div>
+        </section>
+
+        {/* VOICE */}
+        <section>
+          <p className="eyebrow">VOICE</p>
+          <p className="mt-1 text-[12.5px] text-[var(--text-dim)]">
+            Have BUDDY read his answers aloud. Uses your OS's built-in voice;
+            higher-quality ElevenLabs lands in a follow-up.
+          </p>
           <button
-            onClick={() => setDemoMode(!demoMode)}
-            className="focus-ring mt-3 text-[12px] text-[var(--text-dim)] underline-offset-2 hover:text-white hover:underline"
+            onClick={() => {
+              setVoiceEnabled(!voiceEnabled);
+              // Stop mid-sentence if we just turned it off.
+              if (voiceEnabled && typeof window !== "undefined") {
+                window.speechSynthesis?.cancel();
+              }
+            }}
+            className={
+              "focus-ring mt-3 inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-[12px] transition-colors " +
+              (voiceEnabled
+                ? "bg-[rgba(0,217,126,0.12)] text-[var(--accent)]"
+                : "border border-white/10 text-[var(--text-dim)] hover:bg-white/5")
+            }
           >
-            {demoMode ? "Disable demo mode" : "Force demo mode"}
+            {voiceEnabled ? <Volume2 size={12} /> : <VolumeX size={12} />}
+            {voiceEnabled ? "Speak responses (on)" : "Speak responses (off)"}
           </button>
         </section>
 
+        {/* QUALITY */}
+        <section>
+          <p className="eyebrow">QUALITY</p>
+          <p className="mt-1 text-[12.5px] text-[var(--text-dim)]">
+            BUDDY's mascot is procedural — drop the tier on weaker hardware
+            or to save battery.
+          </p>
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            {TIERS.map(({ value, label, hint }) => {
+              const active = qualityTier === value;
+              return (
+                <button
+                  key={value}
+                  onClick={() => setQualityTier(value)}
+                  className={
+                    "focus-ring flex flex-col items-start rounded-xl border px-3 py-2 text-left transition-colors " +
+                    (active
+                      ? "border-[var(--accent)] bg-[rgba(0,217,126,0.08)]"
+                      : "border-white/[0.08] hover:border-white/20")
+                  }
+                >
+                  <div className="flex items-center gap-1.5 text-[13px] font-semibold text-white">
+                    {active && <Sparkles size={11} className="text-[var(--accent)]" />}
+                    {label}
+                  </div>
+                  <p className="mt-0.5 text-[11px] text-[var(--text-dim)]">
+                    {hint}
+                  </p>
+                </button>
+              );
+            })}
+          </div>
+        </section>
+
+        {/* DATA */}
+        <section>
+          <p className="eyebrow">DATA</p>
+          <p className="mt-1 text-[12.5px] text-[var(--text-dim)]">
+            {messageCount} message{messageCount === 1 ? "" : "s"} in this
+            session, {historyCount} archived session
+            {historyCount === 1 ? "" : "s"}. All stored locally.
+          </p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <button
+              onClick={wipeHistory}
+              className={
+                "focus-ring inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[12px] " +
+                (confirmHistoryWipe
+                  ? "bg-[var(--accent-warm)] text-white"
+                  : "border border-white/10 text-[var(--text-dim)] hover:bg-white/5")
+              }
+            >
+              <Trash2 size={11} />
+              {confirmHistoryWipe ? "Click again to confirm" : "Wipe history"}
+            </button>
+            <button
+              onClick={resetOnboarding}
+              className={
+                "focus-ring inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[12px] " +
+                (confirmReset
+                  ? "bg-[var(--accent-warm)] text-white"
+                  : "border border-white/10 text-[var(--text-dim)] hover:bg-white/5")
+              }
+            >
+              <RefreshCw size={11} />
+              {confirmReset ? "Click again to confirm" : "Reset onboarding"}
+            </button>
+          </div>
+        </section>
+
+        {/* ABOUT */}
         <section>
           <p className="eyebrow">ABOUT</p>
           <p className="mt-1 text-[12.5px] leading-[1.6] text-[var(--text-dim)]">

@@ -4,7 +4,7 @@ import { useFrame, useThree } from "@react-three/fiber";
 import { MeshTransmissionMaterial, Sparkles } from "@react-three/drei";
 import { useEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
-import { useMood, useQualityTier } from "../../lib/store";
+import { useMood, useQualityTier, useApp } from "../../lib/store";
 
 type BuddyModelProps = {
   /** When true, the model tracks the global cursor; off for the chat dock mini-buddy. */
@@ -226,6 +226,20 @@ export function BuddyModel({
       const base = mood === "thinking" ? 1.1 : 0.85;
       const amp = mood === "thinking" ? 0.35 : 0.15;
       mat.emissiveIntensity = base + Math.sin(t * (mood === "thinking" ? 3 : 1.6)) * amp;
+    }
+
+    // Drive the mouth from voice amplitude. When voice is off this stays 0
+    // and the mouth holds its idle smile. When voice is on, the speak()
+    // helper pulses audioLevel on each word boundary.
+    if (mouth.current) {
+      const level = useApp.getState().audioLevel;
+      // Idle smile = scale.y 1; speaking = up to ~2.2x for open-mouth shape.
+      const target = 1 + level * 1.2;
+      mouth.current.scale.y = THREE.MathUtils.lerp(
+        mouth.current.scale.y,
+        target,
+        0.45,
+      );
     }
   });
 
