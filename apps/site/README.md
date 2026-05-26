@@ -47,7 +47,7 @@ src/
 
 ## Deploy
 
-Made for Vercel. Push to `main` of [TryBuddyAI/buddy](https://github.com/TryBuddyAI/buddy), connect the repo in Vercel with `apps/site` as the project root, set `ANTHROPIC_API_KEY` in env vars, ship.
+Made for Vercel. Push to `main` of [TryBuddyAI/BuddyOS](https://github.com/TryBuddyAI/BuddyOS), connect the repo in Vercel with `apps/site` as the project root, set `ANTHROPIC_API_KEY` in env vars, ship.
 
 ## Anti-patterns to avoid
 

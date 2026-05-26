@@ -6,7 +6,7 @@ Thanks for thinking about contributing — small project, big ambitions, real we
 
 | Want to | Look here |
 |---|---|
-| Fix a bug | [open issues](https://github.com/TryBuddyAI/buddy/issues) labelled `bug` |
+| Fix a bug | [open issues](https://github.com/TryBuddyAI/BuddyOS/issues) labelled `bug` |
 | Add a feature | Open a discussion first so we can align on scope |
 | Improve the 3D mascot | [`apps/desktop/src/components/Companion/BuddyModel.tsx`](apps/desktop/src/components/Companion/BuddyModel.tsx) |
 | Improve the website | [`apps/site/`](apps/site/) |
@@ -16,7 +16,7 @@ Thanks for thinking about contributing — small project, big ambitions, real we
 ## Dev setup
 
 ```bash
-git clone https://github.com/TryBuddyAI/buddy.git
+git clone https://github.com/TryBuddyAI/BuddyOS.git
 cd buddy
 
 # Marketing site
@@ -70,4 +70,4 @@ Be kind, be specific, assume good faith. Disagreements are about code, never peo
 
 ## Questions
 
-[Open a discussion](https://github.com/TryBuddyAI/buddy/discussions) or ping us in any open PR.
+[Open a discussion](https://github.com/TryBuddyAI/BuddyOS/discussions) or ping us in any open PR.
