@@ -1,0 +1,157 @@
+@import "tailwindcss";
+
+:root {
+  --canvas: #0F1419;
+  --surface: #1A1F2E;
+  --surface-2: #232B3D;
+  --accent: #00D97E;
+  --accent-warm: #FF6B35;
+  --text: #FFFFFF;
+  --text-dim: #A0A8B8;
+  --text-faint: #5B6477;
+  --border: rgba(255, 255, 255, 0.06);
+  --border-strong: rgba(255, 255, 255, 0.12);
+}
+
+@theme inline {
+  --color-canvas: var(--canvas);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-accent: var(--accent);
+  --color-accent-warm: var(--accent-warm);
+  --color-text: var(--text);
+  --color-text-dim: var(--text-dim);
+  --color-text-faint: var(--text-faint);
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+html,
+body {
+  background: transparent;
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  user-select: none;
+}
+
+body.opaque {
+  background: var(--canvas);
+}
+
+/* The summon window forces every parent to stay transparent so only BUDDY
+   and the input pill paint visible pixels. */
+html.transparent-root,
+body.transparent-root,
+.transparent-root #root {
+  background: transparent !important;
+}
+
+input,
+textarea,
+[contenteditable="true"] {
+  user-select: text;
+}
+
+::selection {
+  background: rgba(0, 217, 126, 0.3);
+  color: white;
+}
+
+@layer utilities {
+  .glass-frost {
+    background: rgba(15, 20, 25, 0.7);
+    backdrop-filter: blur(12px) saturate(140%);
+    -webkit-backdrop-filter: blur(12px) saturate(140%);
+    border: 1px solid var(--border);
+  }
+  .glass-crystal {
+    background: rgba(26, 31, 46, 0.6);
+    backdrop-filter: blur(18px) saturate(160%);
+    -webkit-backdrop-filter: blur(18px) saturate(160%);
+    border: 1px solid var(--border-strong);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.05),
+      0 18px 40px -20px rgba(0, 0, 0, 0.6);
+  }
+  .glass-lens {
+    background: linear-gradient(
+      135deg,
+      rgba(0, 217, 126, 0.2) 0%,
+      rgba(0, 217, 126, 0.06) 50%,
+      rgba(165, 255, 217, 0.14) 100%
+    );
+    backdrop-filter: blur(14px) saturate(180%);
+    -webkit-backdrop-filter: blur(14px) saturate(180%);
+    border: 1px solid rgba(0, 217, 126, 0.35);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.1),
+      0 8px 24px -8px rgba(0, 217, 126, 0.25);
+  }
+
+  .mono {
+    font-family: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  }
+
+  .eyebrow {
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 11px;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    color: var(--accent);
+  }
+
+  .focus-ring:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+}
+
+@keyframes brand-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(0, 217, 126, 0.6); }
+  50% { box-shadow: 0 0 0 8px rgba(0, 217, 126, 0); }
+}
+.brand-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--accent);
+  animation: brand-pulse 2.2s ease-in-out infinite;
+}
+
+@keyframes stream-cursor {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+.stream-cursor {
+  display: inline-block;
+  width: 7px;
+  height: 1em;
+  vertical-align: -2px;
+  margin-left: 2px;
+  background: var(--accent);
+  animation: stream-cursor 1s steps(2, end) infinite;
+}
+
+/* Used by the summon window's frameless dragging affordance. */
+.drag-region {
+  -webkit-app-region: drag;
+}
+.no-drag {
+  -webkit-app-region: no-drag;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}

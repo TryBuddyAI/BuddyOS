@@ -1,0 +1,58 @@
+# Dependencies
+node_modules/
+.pnp.*
+.yarn/
+
+# Build outputs
+.next/
+out/
+dist/
+build/
+target/
+
+# Rust
+**/target/
+**/Cargo.lock.bak
+
+# Tauri-generated
+src-tauri/gen/
+src-tauri/Cargo.lock
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# Env files (NEVER commit secrets)
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# Test + coverage
+coverage/
+.nyc_output/
+
+# Cache
+.cache/
+.parcel-cache/
+.turbo/
+.eslintcache
+
+# Generated TS info
+*.tsbuildinfo
+next-env.d.ts
+
+# Local Claude artifacts
+.claude/launch.json
+.claude/settings.local.json
+.claude/projects/
