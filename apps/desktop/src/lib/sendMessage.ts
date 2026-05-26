@@ -1,12 +1,6 @@
 import { nanoid } from "nanoid";
 import { useApp, type ChatMessage } from "./store";
-import {
-  hideSummon,
-  openSettings,
-  quitApp,
-  streamChat,
-  type ChatTurn,
-} from "./ipc";
+import { hideSummon, quitApp, streamChat, type ChatTurn } from "./ipc";
 import { speak } from "./speak";
 
 /**
@@ -32,8 +26,14 @@ const SLASH_COMMANDS: Record<string, () => Promise<void> | void> = {
   clear: () => {
     useApp.getState().newSession();
   },
-  settings: async () => {
-    await openSettings();
+  settings: () => {
+    useApp.getState().setSettingsOpen(true);
+  },
+  help: () => {
+    useApp.getState().say(
+      "Slash commands: /close /quit /exit · /hide · /new /clear · /settings · /help",
+      6500,
+    );
   },
 };
 
@@ -180,8 +180,11 @@ export async function sendMessage(text: string) {
   history.push({ role: "user", content: trimmed });
 
   let sawFirstToken = false;
+  const personality = useApp.getState().personality;
 
-  await streamChat(history, (chunk) => {
+  await streamChat(
+    history,
+    (chunk) => {
     switch (chunk.type) {
       case "start":
         useApp.getState().setMood("speaking");
@@ -231,5 +234,7 @@ export async function sendMessage(text: string) {
         useApp.getState().silence();
         break;
     }
-  });
+    },
+    personality,
+  );
 }

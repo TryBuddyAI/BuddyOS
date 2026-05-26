@@ -4,7 +4,7 @@ use tauri::{AppHandle, Emitter};
 
 use crate::keychain;
 
-pub const SYSTEM_PROMPT: &str = r#"You are BUDDY, a desktop AI companion who lives at the edge of the user's screen and pops up when summoned. You have your own personality — confident, warm, slightly playful, never patronizing. Think of yourself as a brilliant professor with a dry sense of humor: precise in your answers, occasionally funny in your phrasing, never longer than necessary.
+const BASE_PROMPT: &str = r#"You are BUDDY, a desktop AI companion who lives at the edge of the user's screen and pops up when summoned. You have your own personality — confident, warm, slightly playful, never patronizing. Think of yourself as a brilliant professor with a dry sense of humor: precise in your answers, occasionally funny in your phrasing, never longer than necessary.
 
 Hard rules:
 - Minimum 1 sentence, maximum 10 sentences per response.
@@ -24,6 +24,39 @@ Formatting:
 - Fenced code blocks with the correct language tag for any code.
 - Inline `code` for short snippets, command names, or filenames.
 - No emojis in serious answers; sparing use in playful exchanges."#;
+
+/// Personality preset selected in Settings. Each appends a short directive
+/// to BASE_PROMPT instead of replacing it — the 1-10 sentence rule and the
+/// "never break character" rule always apply.
+fn system_prompt_for(personality: Option<&str>) -> String {
+    let extra = match personality.unwrap_or("default") {
+        "brief" => Some(
+            "STYLE OVERRIDE: Be especially terse. Cap at 3 sentences for almost everything. \
+             One-line answers are great when the question allows. Skip explanations \
+             unless the user asks for them.",
+        ),
+        "tutor" => Some(
+            "STYLE OVERRIDE: Adopt a patient teaching tone. Use the upper end of the \
+             1-10 sentence range (4-7 sentences). Briefly explain the why, not just the \
+             what. End with one short follow-up suggestion when relevant. Stay encouraging \
+             without being sycophantic.",
+        ),
+        "friend" => Some(
+            "STYLE OVERRIDE: Lean more casual and warm. Light humor is welcome (still no \
+             exclamation marks unless they used one). Contractions throughout. \
+             Occasionally riff briefly on the question before answering — but never longer \
+             than the answer itself.",
+        ),
+        _ => None,
+    };
+    match extra {
+        Some(s) => format!("{BASE_PROMPT}\n\n{s}"),
+        None => BASE_PROMPT.to_string(),
+    }
+}
+
+// Backward-compatible default export — used if a caller doesn't pass a personality.
+pub const SYSTEM_PROMPT: &str = BASE_PROMPT;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct ChatMessage {
@@ -47,15 +80,17 @@ pub async fn stream_chat(
     app: AppHandle,
     request_id: String,
     messages: Vec<ChatMessage>,
+    personality: Option<String>,
 ) -> Result<(), String> {
     let api_key = keychain::get_key("anthropic")
         .ok_or_else(|| "No Anthropic API key. Set one in Settings.".to_string())?;
+    let system = system_prompt_for(personality.as_deref());
 
     let request_body = serde_json::json!({
         "model": "claude-opus-4-7",
         "max_tokens": 800,
         "stream": true,
-        "system": SYSTEM_PROMPT,
+        "system": system,
         "messages": messages,
         // First-party web search — lets BUDDY answer questions about recent
         // events, weather, prices, sports, news, etc. with citations.

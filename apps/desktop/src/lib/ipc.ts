@@ -62,6 +62,7 @@ export function isAccessibilityError(err: unknown): boolean {
 export async function streamChat(
   messages: ChatTurn[],
   onChunk: (chunk: ChatChunk) => void,
+  personality?: string,
 ): Promise<{ abort: () => Promise<void> }> {
   const requestId = nanoid();
   const event = `chat-chunk:${requestId}`;
@@ -70,7 +71,7 @@ export async function streamChat(
   );
 
   // Fire and forget — the command completes when the stream is done.
-  invoke("stream_chat", { requestId, messages }).catch((err) => {
+  invoke("stream_chat", { requestId, messages, personality }).catch((err) => {
     onChunk({ type: "error", message: String(err) });
   });
 

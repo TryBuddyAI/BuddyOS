@@ -19,10 +19,17 @@ import {
   quitApp,
   clearApiKey,
 } from "../../lib/ipc";
-import { useApp } from "../../lib/store";
+import { useApp, type Personality } from "../../lib/store";
 import { HotkeyCapture } from "../Onboarding/HotkeyCapture";
 
 type Tier = "ultra" | "high" | "medium" | "low";
+
+const PERSONALITIES: { value: Personality; label: string; hint: string }[] = [
+  { value: "default", label: "Default", hint: "Confident, dry humor, 1–10 sentences" },
+  { value: "brief", label: "Brief", hint: "Cap at 3 sentences. No padding." },
+  { value: "tutor", label: "Tutor", hint: "Patient, explains the why. 4–7 sentences." },
+  { value: "friend", label: "Friend", hint: "Casual, warmer, occasional riff" },
+];
 const TIERS: { value: Tier; label: string; hint: string }[] = [
   { value: "ultra", label: "Ultra", hint: "Max poly count + bloom + sparkles" },
   { value: "high", label: "High", hint: "Default — looks great on M-series" },
@@ -44,6 +51,8 @@ export function SettingsPanel() {
   const setQualityTier = useApp((s) => s.setQualityTier);
   const voiceEnabled = useApp((s) => s.voiceEnabled);
   const setVoiceEnabled = useApp((s) => s.setVoiceEnabled);
+  const personality = useApp((s) => s.personality);
+  const setPersonality = useApp((s) => s.setPersonality);
   const newSession = useApp((s) => s.newSession);
   const setOnboarded = useApp((s) => s.setOnboarded);
   const messageCount = useApp((s) => s.messages.length);
@@ -216,6 +225,39 @@ export function SettingsPanel() {
                 {removingKey ? "Removing…" : "Remove API key"}
               </button>
             )}
+          </div>
+        </section>
+
+        {/* PERSONALITY */}
+        <section>
+          <p className="eyebrow">PERSONALITY</p>
+          <p className="mt-1 text-[12.5px] text-[var(--text-dim)]">
+            How BUDDY phrases himself. The 1–10 sentence rule applies in all
+            modes.
+          </p>
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            {PERSONALITIES.map(({ value, label, hint }) => {
+              const active = personality === value;
+              return (
+                <button
+                  key={value}
+                  onClick={() => setPersonality(value)}
+                  className={
+                    "focus-ring flex flex-col items-start rounded-xl border px-3 py-2 text-left transition-colors " +
+                    (active
+                      ? "border-[var(--accent)] bg-[rgba(0,217,126,0.08)]"
+                      : "border-white/[0.08] hover:border-white/20")
+                  }
+                >
+                  <span className="text-[13px] font-semibold text-white">
+                    {label}
+                  </span>
+                  <p className="mt-0.5 text-[11px] text-[var(--text-dim)]">
+                    {hint}
+                  </p>
+                </button>
+              );
+            })}
           </div>
         </section>
 

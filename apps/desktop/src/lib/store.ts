@@ -29,12 +29,15 @@ export type ChatMessage = {
   citations?: Citation[];
 };
 
+export type Personality = "default" | "brief" | "tutor" | "friend";
+
 type Persisted = {
   hotkey: string;
   hasOnboarded: boolean;
   demoMode: boolean;
   qualityTier: "ultra" | "high" | "medium" | "low";
   voiceEnabled: boolean;
+  personality: Personality;
   history: ChatMessage[][];
 };
 
@@ -71,6 +74,7 @@ type AppState = Persisted & {
   setDemoMode: (b: boolean) => void;
   setQualityTier: (t: Persisted["qualityTier"]) => void;
   setVoiceEnabled: (b: boolean) => void;
+  setPersonality: (p: Personality) => void;
 };
 
 const messageTimers = new Map<string, ReturnType<typeof setTimeout>>();
@@ -83,6 +87,7 @@ export const useApp = create<AppState>()(
       demoMode: false,
       qualityTier: "high",
       voiceEnabled: false,
+      personality: "default" as Personality,
       history: [],
 
       mood: "idle",
@@ -176,6 +181,7 @@ export const useApp = create<AppState>()(
       setDemoMode: (demoMode) => set({ demoMode }),
       setQualityTier: (qualityTier) => set({ qualityTier }),
       setVoiceEnabled: (voiceEnabled) => set({ voiceEnabled }),
+      setPersonality: (personality) => set({ personality }),
     }),
     {
       name: "buddy-app-state",
@@ -187,6 +193,7 @@ export const useApp = create<AppState>()(
           demoMode: s.demoMode,
           qualityTier: s.qualityTier,
           voiceEnabled: s.voiceEnabled,
+          personality: s.personality,
           history: s.history.slice(-20),
         }) satisfies Persisted,
       skipHydration: true,

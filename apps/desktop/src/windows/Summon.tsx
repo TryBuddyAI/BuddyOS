@@ -71,15 +71,31 @@ export function SummonWindow() {
     return () => unlisten?.();
   }, [newSession]);
 
-  // Esc closes; Cmd/Ctrl+N starts a new chat.
+  // Esc closes; Cmd/Ctrl+N starts a new chat. Any printable key while the
+  // window is open but the input doesn't have focus → focus it so the user
+  // can just start typing without aiming for the pill.
   useEffect(() => {
     const onKey = async (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         e.preventDefault();
         await getCurrentWebviewWindow().hide();
-      } else if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "n") {
+        return;
+      }
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "n") {
         e.preventDefault();
         newSession();
+        return;
+      }
+      // Auto-focus the input on any printable keypress.
+      const active = document.activeElement;
+      if (
+        active !== inputRef.current &&
+        e.key.length === 1 &&
+        !e.metaKey &&
+        !e.ctrlKey &&
+        !e.altKey
+      ) {
+        inputRef.current?.focus();
       }
     };
     window.addEventListener("keydown", onKey);
