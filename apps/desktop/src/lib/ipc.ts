@@ -39,6 +39,20 @@ export async function hasApiKey(provider: string): Promise<boolean> {
 export async function clearApiKey(provider: string): Promise<void> {
   await invoke("clear_api_key", { provider });
 }
+
+// Voice
+export async function hasWhisperModel(): Promise<boolean> {
+  return invoke("has_whisper_model");
+}
+export async function downloadWhisperModel(): Promise<void> {
+  await invoke("download_whisper_model");
+}
+export async function transcribe(audio: Uint8Array): Promise<string> {
+  return invoke("transcribe", { audio: Array.from(audio) });
+}
+export function isVoiceModelMissing(err: unknown): boolean {
+  return typeof err === "string" && err.includes("VOICE_MODEL_MISSING");
+}
 export async function defaultHotkeyLabel(): Promise<string> {
   return invoke("default_hotkey_label");
 }

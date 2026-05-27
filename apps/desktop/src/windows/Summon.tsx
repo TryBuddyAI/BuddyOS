@@ -3,12 +3,14 @@
 import { useEffect, useRef, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
-import { Send, Settings as SettingsIcon } from "lucide-react";
+import { Send, Settings as SettingsIcon, Mic } from "lucide-react";
 import { CompanionStage } from "../components/Companion/CompanionStage";
 import { SpeechBubble } from "../components/Companion/SpeechBubble";
 import { SettingsPanel } from "../components/Settings/SettingsPanel";
 import { useApp } from "../lib/store";
 import { sendMessage } from "../lib/sendMessage";
+import { useVoiceRecorder } from "../lib/useVoiceRecorder";
+import { isVoiceModelMissing, transcribe } from "../lib/ipc";
 
 /**
  * The summon window is fully transparent — only BUDDY (rendered on the
@@ -109,6 +111,35 @@ export function SummonWindow() {
     sendMessage(v);
   };
 
+  // Hold-to-talk recorder. On press: start. On release / leave: stop, send
+  // the blob to Rust for transcription, pre-fill the input with the result.
+  const recorder = useVoiceRecorder();
+  const [voiceMsg, setVoiceMsg] = useState<string | null>(null);
+  const releaseVoice = async () => {
+    const blob = await recorder.stopAndGetBlob();
+    if (!blob) return;
+    setVoiceMsg("Transcribing…");
+    try {
+      const bytes = new Uint8Array(await blob.arrayBuffer());
+      const text = await transcribe(bytes);
+      if (text) {
+        setInput(text);
+        setVoiceMsg(null);
+        inputRef.current?.focus();
+      }
+    } catch (err) {
+      if (isVoiceModelMissing(err)) {
+        setVoiceMsg("Voice model missing — see Settings → Voice.");
+      } else {
+        setVoiceMsg(String(err).replace(/^Error: /, ""));
+      }
+      setTimeout(() => setVoiceMsg(null), 4500);
+    }
+  };
+
+  const recording = recorder.state === "recording";
+  const recError = recorder.error;
+
   return (
     <div className="relative h-full w-full select-none">
       {/* BUDDY fills the window. The canvas itself is transparent. */}
@@ -142,6 +173,33 @@ export function SummonWindow() {
           }
           style={{ width: "min(80%, 360px)" }}
         >
+          {/* Hold-to-talk mic */}
+          <button
+            aria-label={recording ? "Recording — release to send" : "Hold to talk"}
+            onMouseDown={(e) => {
+              e.preventDefault();
+              recorder.start();
+            }}
+            onMouseUp={releaseVoice}
+            onMouseLeave={() => {
+              if (recording) releaseVoice();
+            }}
+            onTouchStart={(e) => {
+              e.preventDefault();
+              recorder.start();
+            }}
+            onTouchEnd={releaseVoice}
+            disabled={isStreaming}
+            className={
+              "focus-ring grid h-7 w-7 shrink-0 place-items-center rounded-full transition-colors disabled:opacity-40 " +
+              (recording
+                ? "bg-[var(--accent-warm)] text-white"
+                : "border border-white/10 text-[var(--text-dim)] hover:bg-white/5 hover:text-white")
+            }
+            title="Hold to dictate"
+          >
+            <Mic size={12} />
+          </button>
           <input
             ref={inputRef}
             value={input}
@@ -153,7 +211,15 @@ export function SummonWindow() {
               }
             }}
             placeholder={
-              isStreaming ? "BUDDY is thinking…" : "Ask me anything…"
+              recording
+                ? "Listening…"
+                : voiceMsg
+                  ? voiceMsg
+                  : recError
+                    ? recError
+                    : isStreaming
+                      ? "BUDDY is thinking…"
+                      : "Ask me anything…"
             }
             disabled={isStreaming}
             maxLength={2000}

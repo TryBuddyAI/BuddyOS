@@ -1,5 +1,6 @@
 mod chat;
 mod keychain;
+mod transcribe;
 
 use std::sync::Mutex;
 
@@ -336,6 +337,9 @@ pub fn run() {
             chat::set_api_key,
             chat::has_api_key,
             chat::clear_api_key,
+            transcribe::transcribe,
+            transcribe::has_whisper_model,
+            transcribe::download_whisper_model,
         ])
         .setup(|app| {
             let handle = app.handle().clone();

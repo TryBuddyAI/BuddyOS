@@ -55,8 +55,6 @@ fn system_prompt_for(personality: Option<&str>) -> String {
     }
 }
 
-// Backward-compatible default export — used if a caller doesn't pass a personality.
-pub const SYSTEM_PROMPT: &str = BASE_PROMPT;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct ChatMessage {
