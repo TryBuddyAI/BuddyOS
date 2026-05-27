@@ -10,7 +10,7 @@ import { SettingsPanel } from "../components/Settings/SettingsPanel";
 import { useApp } from "../lib/store";
 import { sendMessage } from "../lib/sendMessage";
 import { useVoiceRecorder } from "../lib/useVoiceRecorder";
-import { isVoiceModelMissing, transcribe } from "../lib/ipc";
+import { isOpenAIKeyMissing, isVoiceModelMissing, transcribe } from "../lib/ipc";
 
 /**
  * The summon window is fully transparent — only BUDDY (rendered on the
@@ -128,12 +128,14 @@ export function SummonWindow() {
         inputRef.current?.focus();
       }
     } catch (err) {
-      if (isVoiceModelMissing(err)) {
+      if (isOpenAIKeyMissing(err)) {
+        setVoiceMsg("Add an OpenAI key in Settings → Voice to enable dictation.");
+      } else if (isVoiceModelMissing(err)) {
         setVoiceMsg("Voice model missing — see Settings → Voice.");
       } else {
         setVoiceMsg(String(err).replace(/^Error: /, ""));
       }
-      setTimeout(() => setVoiceMsg(null), 4500);
+      setTimeout(() => setVoiceMsg(null), 5500);
     }
   };
 

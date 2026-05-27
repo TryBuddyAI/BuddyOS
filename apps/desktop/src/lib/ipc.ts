@@ -53,6 +53,9 @@ export async function transcribe(audio: Uint8Array): Promise<string> {
 export function isVoiceModelMissing(err: unknown): boolean {
   return typeof err === "string" && err.includes("VOICE_MODEL_MISSING");
 }
+export function isOpenAIKeyMissing(err: unknown): boolean {
+  return typeof err === "string" && err.includes("OPENAI_KEY_MISSING");
+}
 export async function defaultHotkeyLabel(): Promise<string> {
   return invoke("default_hotkey_label");
 }

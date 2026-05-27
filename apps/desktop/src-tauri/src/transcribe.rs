@@ -1,20 +1,25 @@
 //! Voice transcription.
 //!
-//! Currently a scaffolded stub: accepts an audio blob from the renderer and
-//! returns a placeholder transcript. The actual transcription happens in
-//! one of three follow-up paths:
+//! Default backend: OpenAI Whisper API. Trades ~$0.006/min for a tiny
+//! binary and zero local model management. The user pastes an OpenAI key
+//! in Settings → Voice (separate from the Anthropic chat key).
 //!
-//! 1. `whisper-rs` — link whisper.cpp into the binary (~10 MB) + a ~75 MB
-//!    `ggml-tiny.en.bin` model downloaded at first use.
-//! 2. Shell out to a system-installed `whisper-cli` (Homebrew, etc.).
-//! 3. OpenAI Whisper API — tiny binary, ~$0.006/min, needs a key.
-//!
-//! The interface here (audio bytes in, transcript out) doesn't change.
+//! Future option: whisper-rs offline — link whisper.cpp into the binary +
+//! a ~75 MB `ggml-tiny.en.bin` model downloaded at first use. The
+//! `has_whisper_model` / `download_whisper_model` commands are scaffolded
+//! for that path; for now they're advisory.
 
 use std::path::PathBuf;
+
+use reqwest::multipart;
 use tauri::Manager;
 
-/// Where we'd put the offline Whisper model file when option 1 ships.
+use crate::keychain;
+
+const OPENAI_TRANSCRIBE_URL: &str = "https://api.openai.com/v1/audio/transcriptions";
+const OPENAI_WHISPER_MODEL: &str = "whisper-1";
+
+/// Where the offline Whisper model file would live when the offline path ships.
 fn model_path(app: &tauri::AppHandle) -> Option<PathBuf> {
     app.path()
         .app_data_dir()
@@ -29,53 +34,66 @@ pub fn has_whisper_model(app: tauri::AppHandle) -> bool {
         .unwrap_or(false)
 }
 
-/// Transcribe a single audio blob. The blob is whatever MediaRecorder
-/// produced in the renderer (typically WebM/Opus on macOS WKWebView).
+/// Transcribe a single audio blob via OpenAI Whisper.
 ///
-/// Returns:
-/// - Ok(transcript) when transcription succeeds.
-/// - Err(message) for permission errors, missing models, etc. The renderer
-///   surfaces these to the user via the input bar.
+/// The blob is whatever MediaRecorder produced in the renderer — typically
+/// WebM/Opus on WKWebView. OpenAI's endpoint auto-detects the codec, so we
+/// just need to declare a reasonable filename + mime.
+///
+/// Returns Ok(transcript) on success, or:
+/// - `OPENAI_KEY_MISSING:` if no OpenAI key in the keychain
+/// - `OPENAI_<status>: …` for any non-2xx response
+/// - a plain message for network / decoding failures
 #[tauri::command]
-pub async fn transcribe(
-    app: tauri::AppHandle,
-    audio: Vec<u8>,
-) -> Result<String, String> {
+pub async fn transcribe(audio: Vec<u8>) -> Result<String, String> {
     if audio.is_empty() {
         return Err("No audio captured".into());
     }
 
-    let has_model = model_path(&app).map(|p| p.exists()).unwrap_or(false);
-    if !has_model {
-        return Err(
-            "VOICE_MODEL_MISSING: Voice transcription needs the Whisper model. \
-             Open Settings → Voice to download it (~75 MB)."
-                .into(),
-        );
-    }
+    let api_key = keychain::get_key("openai").ok_or_else(|| {
+        "OPENAI_KEY_MISSING: Voice needs an OpenAI key. Paste one in Settings → Voice."
+            .to_string()
+    })?;
 
-    // Once whisper-rs is plumbed in:
-    //   1. Decode `audio` (WebM/Opus) to 16 kHz mono f32 PCM via symphonia.
-    //   2. Load WhisperContext::new(model_path).
-    //   3. Run state.full(params, &pcm) and concatenate the segments.
-    //
-    // For now, the model presence check above is the gate — when the model
-    // file exists, swap this body out for the real call.
-    Err("Whisper backend not yet linked. (Model file is present.)".into())
+    // The renderer always sends WebM/Opus blobs on macOS WKWebView. We give
+    // OpenAI a filename hint with that extension so the server picks the
+    // right decoder. Other engines (older Edge, mobile Safari) may send
+    // mp4/m4a; OpenAI auto-detects either way.
+    let part = multipart::Part::bytes(audio)
+        .file_name("audio.webm")
+        .mime_str("audio/webm")
+        .map_err(|e| format!("Multipart build: {e}"))?;
+
+    let form = multipart::Form::new()
+        .text("model", OPENAI_WHISPER_MODEL)
+        // Plain text response — no JSON wrapper, no timestamps, no SRT.
+        .text("response_format", "text")
+        .part("file", part);
+
+    let client = reqwest::Client::new();
+    let resp = client
+        .post(OPENAI_TRANSCRIBE_URL)
+        .header("Authorization", format!("Bearer {api_key}"))
+        .multipart(form)
+        .send()
+        .await
+        .map_err(|e| format!("Network: {e}"))?;
+
+    let status = resp.status();
+    let body = resp.text().await.unwrap_or_default();
+    if !status.is_success() {
+        return Err(format!("OPENAI_{status}: {body}"));
+    }
+    Ok(body.trim().to_string())
 }
 
-/// Stubbed download command — kicks off a background fetch of the
-/// ggml-tiny.en.bin model from huggingface.co into the app data dir.
-/// Returns the bytes downloaded so far via events; the renderer can show a
-/// progress bar.
-///
-/// Not implemented yet. Returns an explanatory error so the UI can show
-/// a "coming soon" state instead of a generic failure.
+/// Stub for the offline path — real download lands when the offline
+/// backend is wired in. For now we return an explanatory error.
 #[tauri::command]
 pub async fn download_whisper_model(_app: tauri::AppHandle) -> Result<(), String> {
     Err(
-        "Model download lands in a follow-up release. For now, you can drop \
-         ggml-tiny.en.bin into the app data dir manually."
+        "Offline transcription isn't shipped yet — use the OpenAI backend \
+         by pasting an OpenAI key in Settings → Voice."
             .into(),
     )
 }

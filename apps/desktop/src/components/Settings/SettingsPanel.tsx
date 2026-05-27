@@ -69,13 +69,46 @@ export function SettingsPanel() {
   const [confirmHistoryWipe, setConfirmHistoryWipe] = useState(false);
   const [confirmReset, setConfirmReset] = useState(false);
 
+  // OpenAI key for voice transcription (separate from Anthropic chat key)
+  const [openaiPresent, setOpenaiPresent] = useState(false);
+  const [openaiInput, setOpenaiInput] = useState("");
+  const [openaiSaving, setOpenaiSaving] = useState(false);
+  const [openaiMsg, setOpenaiMsg] = useState<string | null>(null);
+
   useEffect(() => {
     defaultHotkeyLabel().then((label) => {
       setDefaultCombo(label);
       setCombo(storeHotkey || label);
     });
     hasApiKey("anthropic").then(setKeyPresent);
+    hasApiKey("openai").then(setOpenaiPresent);
   }, [storeHotkey]);
+
+  const saveOpenAIKey = async () => {
+    setOpenaiSaving(true);
+    setOpenaiMsg(null);
+    try {
+      await setApiKey("openai", openaiInput.trim());
+      setOpenaiInput("");
+      setOpenaiPresent(true);
+      setOpenaiMsg("Saved");
+    } catch (e) {
+      setOpenaiMsg(String(e));
+    } finally {
+      setOpenaiSaving(false);
+    }
+  };
+
+  const removeOpenAIKey = async () => {
+    setOpenaiMsg(null);
+    try {
+      await clearApiKey("openai");
+      setOpenaiPresent(false);
+      setOpenaiMsg("Removed");
+    } catch (e) {
+      setOpenaiMsg(String(e));
+    }
+  };
 
   const applyHotkey = async (next: string) => {
     setCombo(next);
@@ -264,6 +297,8 @@ export function SettingsPanel() {
         {/* VOICE */}
         <section>
           <p className="eyebrow">VOICE</p>
+
+          {/* Output — speech synthesis */}
           <p className="mt-1 text-[12.5px] text-[var(--text-dim)]">
             Have BUDDY read his answers aloud. Uses your OS's built-in voice;
             higher-quality ElevenLabs lands in a follow-up.
@@ -271,7 +306,6 @@ export function SettingsPanel() {
           <button
             onClick={() => {
               setVoiceEnabled(!voiceEnabled);
-              // Stop mid-sentence if we just turned it off.
               if (voiceEnabled && typeof window !== "undefined") {
                 window.speechSynthesis?.cancel();
               }
@@ -286,6 +320,70 @@ export function SettingsPanel() {
             {voiceEnabled ? <Volume2 size={12} /> : <VolumeX size={12} />}
             {voiceEnabled ? "Speak responses (on)" : "Speak responses (off)"}
           </button>
+
+          {/* Input — OpenAI Whisper */}
+          <div className="mt-5 border-t border-white/[0.06] pt-4">
+            <p className="text-[12.5px] font-semibold text-white">
+              Voice input
+            </p>
+            <p className="mt-1 text-[12px] leading-[1.55] text-[var(--text-dim)]">
+              Hold the mic button on the input pill to dictate. BUDDY routes
+              audio through OpenAI Whisper{" "}
+              <span className="text-[var(--text-faint)]">
+                (~$0.006 / minute)
+              </span>
+              . Paste an OpenAI key below — stored in the OS keychain,
+              separate from your Anthropic key.
+            </p>
+            <div className="mt-3 flex gap-2">
+              <input
+                type="password"
+                placeholder={openaiPresent ? "•••• replace key" : "sk-…"}
+                value={openaiInput}
+                onChange={(e) => setOpenaiInput(e.target.value)}
+                className="glass-frost focus-ring h-9 flex-1 rounded-full bg-transparent px-3 text-[13px] text-white outline-none placeholder:text-[var(--text-faint)]"
+              />
+              <button
+                disabled={openaiSaving || !openaiInput.trim()}
+                onClick={saveOpenAIKey}
+                className="focus-ring rounded-full bg-[var(--accent)] px-3 text-[12px] font-semibold text-[var(--canvas)] hover:opacity-90 disabled:opacity-50"
+              >
+                {openaiSaving ? "Saving…" : openaiPresent ? "Replace" : "Save"}
+              </button>
+            </div>
+            <div className="mt-2 flex items-center gap-3 text-[11.5px]">
+              <span
+                className={
+                  openaiPresent
+                    ? "text-[var(--accent)]"
+                    : "text-[var(--text-faint)]"
+                }
+              >
+                {openaiPresent ? "● Connected" : "○ Not connected"}
+              </span>
+              {openaiPresent && (
+                <button
+                  onClick={removeOpenAIKey}
+                  className="focus-ring text-[var(--accent-warm)] underline-offset-2 hover:underline"
+                >
+                  Remove
+                </button>
+              )}
+              <a
+                href="https://platform.openai.com/api-keys"
+                target="_blank"
+                rel="noreferrer"
+                className="text-[var(--text-dim)] underline-offset-2 hover:text-white hover:underline"
+              >
+                Get a key →
+              </a>
+            </div>
+            {openaiMsg && (
+              <p className="mt-2 text-[12px] text-[var(--accent)]">
+                {openaiMsg}
+              </p>
+            )}
+          </div>
         </section>
 
         {/* QUALITY */}
