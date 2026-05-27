@@ -171,9 +171,11 @@ export function SettingsPanel() {
       setTimeout(() => setConfirmReset(false), 4000);
       return;
     }
-    setOnboarded(false);
+    // Close the settings panel first, then flip the onboarded flag a few
+    // frames later so the panel exit-animation has a chance to play and the
+    // OnboardingWindow doesn't pop in over a still-rendered Settings card.
     setSettingsOpen(false);
-    // App.tsx renders OnboardingWindow when hasOnboarded becomes false.
+    setTimeout(() => setOnboarded(false), 220);
   };
 
   return (

@@ -51,6 +51,9 @@ type AppState = Persisted & {
   messages: ChatMessage[];
   input: string;
   error: string | null;
+  /** Abort function for the in-flight chat stream, if any. */
+  activeStreamAbort: (() => Promise<void>) | null;
+  setActiveStreamAbort: (fn: (() => Promise<void>) | null) => void;
   setMood: (m: Mood) => void;
   setStreaming: (b: boolean) => void;
   say: (text: string, duration?: number) => void;
@@ -100,7 +103,9 @@ export const useApp = create<AppState>()(
       input: "",
       error: null,
       settingsOpen: false,
+      activeStreamAbort: null,
 
+      setActiveStreamAbort: (fn) => set({ activeStreamAbort: fn }),
       setMood: (mood) => set({ mood }),
       setStreaming: (isStreaming) => set({ isStreaming }),
 
@@ -113,9 +118,19 @@ export const useApp = create<AppState>()(
         }
         set({ currentMessage: text, messageId: id });
         const ms = duration ?? Math.max(3000, text.length * 60);
-        const t = setTimeout(() => {
-          if (get().messageId === id) get().silence();
-        }, ms);
+        // While TTS is mid-sentence we don't want the bubble to vanish.
+        // Reschedule the dismiss tick by ticks (500ms each) so as long as
+        // isSpeaking stays true the bubble stays visible.
+        const tryDismiss = () => {
+          if (get().messageId !== id) return; // newer message already replaced us
+          if (get().isSpeaking) {
+            const next = setTimeout(tryDismiss, 500);
+            messageTimers.set(id, next);
+            return;
+          }
+          get().silence();
+        };
+        const t = setTimeout(tryDismiss, ms);
         messageTimers.set(id, t);
       },
       silence: () => {

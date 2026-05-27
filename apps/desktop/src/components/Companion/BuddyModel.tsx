@@ -90,6 +90,12 @@ export function BuddyModel({
   const facingRef = useRef(0);
 
   useFrame((state, delta) => {
+    // Window-hidden shortcut. The frameloop="never" gate from CompanionStage
+    // stops r3f from scheduling new frames once it lands, but there's a 1-2
+    // frame window where useFrame still fires. Skip the expensive math.
+    const w = window as unknown as { __BUDDY_VISIBLE__?: boolean };
+    if (w.__BUDDY_VISIBLE__ === false) return;
+
     const t = state.clock.elapsedTime;
 
     if (group.current && mood !== "dissolving" && mood !== "assembling") {

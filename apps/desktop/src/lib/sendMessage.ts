@@ -162,7 +162,8 @@ export async function sendMessage(text: string) {
     const final = useApp.getState().messages.find((m) => m.id === buddyId)?.text;
     if (final) {
       useApp.getState().say(final, 6000);
-      speak(buddyId, final);
+      // Don't TTS the canned demo replies — the bubble already conveys
+      // them, and the double-channel feels broken.
     }
     return;
   }
@@ -182,7 +183,7 @@ export async function sendMessage(text: string) {
   let sawFirstToken = false;
   const personality = useApp.getState().personality;
 
-  await streamChat(
+  const handle = await streamChat(
     history,
     (chunk) => {
     switch (chunk.type) {
@@ -217,6 +218,7 @@ export async function sendMessage(text: string) {
         useApp.getState().setMessageStatus(buddyId, "complete");
         useApp.getState().setStreaming(false);
         useApp.getState().setMood("idle");
+        useApp.getState().setActiveStreamAbort(null);
         const finalText = useApp
           .getState()
           .messages.find((m) => m.id === buddyId)?.text;
@@ -227,14 +229,25 @@ export async function sendMessage(text: string) {
         break;
       }
       case "error":
-        useApp.getState().setMessageStatus(buddyId, "error", chunk.message);
+        if (chunk.message === "ABORTED") {
+          // User-cancelled. Mark partial as complete (preserve what was
+          // streamed) and clean up state — no error in the UI.
+          useApp.getState().setMessageStatus(buddyId, "complete");
+        } else {
+          useApp.getState().setMessageStatus(buddyId, "error", chunk.message);
+          useApp.getState().setError(chunk.message);
+        }
         useApp.getState().setStreaming(false);
-        useApp.getState().setError(chunk.message);
         useApp.getState().setMood("idle");
+        useApp.getState().setActiveStreamAbort(null);
         useApp.getState().silence();
         break;
     }
     },
     personality,
   );
+
+  // Park the abort handle in the store so Esc / new-chat / window-hide
+  // listeners can flip the kill switch.
+  useApp.getState().setActiveStreamAbort(handle.abort);
 }

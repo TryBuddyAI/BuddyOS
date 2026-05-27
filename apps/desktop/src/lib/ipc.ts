@@ -80,20 +80,28 @@ export async function streamChat(
   messages: ChatTurn[],
   onChunk: (chunk: ChatChunk) => void,
   personality?: string,
-): Promise<{ abort: () => Promise<void> }> {
+): Promise<{ requestId: string; abort: () => Promise<void> }> {
   const requestId = nanoid();
   const event = `chat-chunk:${requestId}`;
   const unlisten: UnlistenFn = await listen<ChatChunk>(event, (e) =>
     onChunk(e.payload),
   );
 
-  // Fire and forget — the command completes when the stream is done.
   invoke("stream_chat", { requestId, messages, personality }).catch((err) => {
     onChunk({ type: "error", message: String(err) });
   });
 
   return {
+    requestId,
     abort: async () => {
+      // Flip the server-side abort flag so the SSE loop breaks and stops
+      // billing. The unlisten happens after, since aborts are infrequent
+      // and we'd rather block briefly than leak a listener.
+      try {
+        await invoke("abort_chat", { requestId });
+      } catch {
+        // best-effort
+      }
       unlisten();
     },
   };

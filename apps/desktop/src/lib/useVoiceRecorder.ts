@@ -26,6 +26,10 @@ export function useVoiceRecorder() {
   const analyserRef = useRef<AnalyserNode | null>(null);
   const rafRef = useRef<number | null>(null);
   const resolveStopRef = useRef<((blob: Blob) => void) | null>(null);
+  // Ref-based in-flight guard. React state updates are async/batched, so two
+  // mouse-down events within ~80ms both see state="idle" and both call
+  // getUserMedia. The ref flips synchronously and blocks the second call.
+  const inFlightRef = useRef(false);
 
   const cleanup = useCallback(() => {
     if (rafRef.current !== null) {
@@ -49,7 +53,8 @@ export function useVoiceRecorder() {
   useEffect(() => () => cleanup(), [cleanup]);
 
   const start = useCallback(async () => {
-    if (state !== "idle") return;
+    if (inFlightRef.current || state !== "idle") return;
+    inFlightRef.current = true;
     setError(null);
     setState("requesting");
     try {
@@ -112,9 +117,11 @@ export function useVoiceRecorder() {
         setError("Recording failed");
         cleanup();
         setState("idle");
+        inFlightRef.current = false;
       };
       rec.start(50);
       setState("recording");
+      inFlightRef.current = false;
     } catch (e) {
       const msg = String(e);
       // Most common cause: user denied mic permission.
@@ -125,6 +132,7 @@ export function useVoiceRecorder() {
       }
       cleanup();
       setState("idle");
+      inFlightRef.current = false;
     }
   }, [cleanup, state]);
 

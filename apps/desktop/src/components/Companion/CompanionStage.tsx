@@ -23,6 +23,11 @@ function RenderLoopGate({ visible }: { visible: boolean }) {
   useEffect(() => {
     set({ frameloop: visible ? "always" : "never" });
     if (visible) invalidate();
+    // Publish a global flag so BuddyModel's useFrame can short-circuit
+    // expensive math the moment we go hidden (between the last visible
+    // frame and the frameloop="never" actually applying).
+    (window as unknown as { __BUDDY_VISIBLE__?: boolean }).__BUDDY_VISIBLE__ =
+      visible;
   }, [visible, set, invalidate]);
   return null;
 }

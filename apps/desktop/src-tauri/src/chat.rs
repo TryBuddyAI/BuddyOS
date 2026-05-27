@@ -1,8 +1,46 @@
+use std::collections::HashMap;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex, OnceLock};
+
 use futures_util::StreamExt;
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter};
 
 use crate::keychain;
+
+/// Per-request abort flags. The renderer calls `abort_chat(request_id)` and
+/// the corresponding flag flips; the SSE loop checks each iteration and
+/// breaks early, which drops the reqwest stream and lets Anthropic close
+/// the connection. Cancelled requests stop billing as soon as the next
+/// message_delta lands.
+type AbortRegistry = Mutex<HashMap<String, Arc<AtomicBool>>>;
+fn abort_registry() -> &'static AbortRegistry {
+    static R: OnceLock<AbortRegistry> = OnceLock::new();
+    R.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
+fn register_abort(request_id: &str) -> Arc<AtomicBool> {
+    let flag = Arc::new(AtomicBool::new(false));
+    if let Ok(mut map) = abort_registry().lock() {
+        map.insert(request_id.to_string(), Arc::clone(&flag));
+    }
+    flag
+}
+
+fn release_abort(request_id: &str) {
+    if let Ok(mut map) = abort_registry().lock() {
+        map.remove(request_id);
+    }
+}
+
+#[tauri::command]
+pub fn abort_chat(request_id: String) {
+    if let Ok(map) = abort_registry().lock() {
+        if let Some(flag) = map.get(&request_id) {
+            flag.store(true, Ordering::SeqCst);
+        }
+    }
+}
 
 const BASE_PROMPT: &str = r#"You are BUDDY, a desktop AI companion who lives at the edge of the user's screen and pops up when summoned. You have your own personality — confident, warm, slightly playful, never patronizing. Think of yourself as a brilliant professor with a dry sense of humor: precise in your answers, occasionally funny in your phrasing, never longer than necessary.
 
@@ -132,10 +170,19 @@ pub async fn stream_chat(
         },
     );
 
+    let abort_flag = register_abort(&request_id);
     let mut stream = resp.bytes_stream();
     let mut buffer = String::new();
+    let mut cancelled = false;
 
     while let Some(item) = stream.next().await {
+        // Cooperative cancellation — set by the abort_chat command when the
+        // user hides the window, hits Esc, or starts a new chat.
+        if abort_flag.load(Ordering::SeqCst) {
+            cancelled = true;
+            break;
+        }
+
         let bytes = match item {
             Ok(b) => b,
             Err(e) => {
@@ -145,13 +192,12 @@ pub async fn stream_chat(
                         message: format!("Stream error: {e}"),
                     },
                 );
+                release_abort(&request_id);
                 return Err(format!("Stream error: {e}"));
             }
         };
         buffer.push_str(&String::from_utf8_lossy(&bytes));
 
-        // SSE messages are separated by \n\n; each message has one or more
-        // lines like "event: name" and "data: payload".
         while let Some(idx) = buffer.find("\n\n") {
             let raw_event = buffer[..idx].to_string();
             buffer.drain(..=idx + 1);
@@ -159,7 +205,23 @@ pub async fn stream_chat(
         }
     }
 
-    let _ = app.emit(&format!("chat-chunk:{request_id}"), ChatChunk::Done);
+    release_abort(&request_id);
+    // We drop `stream` and `resp` here — the underlying reqwest body is
+    // closed, which signals the server to stop billing.
+    drop(stream);
+
+    if cancelled {
+        // Surface a distinct event so the renderer can mark the message as
+        // "stopped" instead of "complete".
+        let _ = app.emit(
+            &format!("chat-chunk:{request_id}"),
+            ChatChunk::Error {
+                message: "ABORTED".to_string(),
+            },
+        );
+    } else {
+        let _ = app.emit(&format!("chat-chunk:{request_id}"), ChatChunk::Done);
+    }
     Ok(())
 }
 

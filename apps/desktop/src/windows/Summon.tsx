@@ -73,18 +73,25 @@ export function SummonWindow() {
     return () => unlisten?.();
   }, [newSession]);
 
-  // Esc closes; Cmd/Ctrl+N starts a new chat. Any printable key while the
-  // window is open but the input doesn't have focus → focus it so the user
-  // can just start typing without aiming for the pill.
+  // Esc closes; Cmd/Ctrl+N starts a new chat. Both also cancel any in-flight
+  // chat stream so we stop billing the API the moment the user moves on.
   useEffect(() => {
     const onKey = async (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         e.preventDefault();
+        const abort = useApp.getState().activeStreamAbort;
+        if (abort) {
+          await abort();
+        }
         await getCurrentWebviewWindow().hide();
         return;
       }
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "n") {
         e.preventDefault();
+        const abort = useApp.getState().activeStreamAbort;
+        if (abort) {
+          await abort();
+        }
         newSession();
         return;
       }
@@ -103,6 +110,18 @@ export function SummonWindow() {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [newSession]);
+
+  // Cancel the in-flight stream when the window hides (hotkey toggle off).
+  useEffect(() => {
+    let off: (() => void) | undefined;
+    listen("summon-hidden", () => {
+      const abort = useApp.getState().activeStreamAbort;
+      if (abort) abort();
+    }).then((fn) => {
+      off = fn;
+    });
+    return () => off?.();
+  }, []);
 
   const submit = () => {
     if (isStreaming) return;
