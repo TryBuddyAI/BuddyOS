@@ -111,8 +111,36 @@ pub enum ChatChunk {
     Error { message: String },
 }
 
+/// Top-level chat command. Routes to Anthropic Claude (cloud) or Ollama
+/// (local) based on the `provider` argument from the renderer. Defaults
+/// to Anthropic for back-compat.
 #[tauri::command]
 pub async fn stream_chat(
+    app: AppHandle,
+    request_id: String,
+    messages: Vec<ChatMessage>,
+    personality: Option<String>,
+    provider: Option<String>,
+    ollama_model: Option<String>,
+    ollama_url: Option<String>,
+) -> Result<(), String> {
+    match provider.as_deref().unwrap_or("anthropic") {
+        "ollama" => {
+            stream_chat_ollama(
+                app,
+                request_id,
+                messages,
+                personality,
+                ollama_model.unwrap_or_else(|| "llama3.2".to_string()),
+                ollama_url.unwrap_or_else(|| "http://localhost:11434".to_string()),
+            )
+            .await
+        }
+        _ => stream_chat_anthropic(app, request_id, messages, personality).await,
+    }
+}
+
+async fn stream_chat_anthropic(
     app: AppHandle,
     request_id: String,
     messages: Vec<ChatMessage>,
@@ -301,6 +329,193 @@ fn handle_sse_event(app: &AppHandle, request_id: &str, raw: &str) {
         }
         _ => {}
     }
+}
+
+// ─── Ollama backend ───────────────────────────────────────────────────────
+//
+// Ollama runs locally at http://localhost:11434 by default. The chat API
+// returns newline-delimited JSON — simpler than Anthropic's SSE, just
+// readline + parse each line.
+//
+// Tools (web_search) are intentionally off here. Most local models don't
+// support function calling well, and there's no first-party web tool. The
+// system prompt is still applied so personality + length rules carry over.
+
+async fn stream_chat_ollama(
+    app: AppHandle,
+    request_id: String,
+    messages: Vec<ChatMessage>,
+    personality: Option<String>,
+    model: String,
+    base_url: String,
+) -> Result<(), String> {
+    let system = system_prompt_for(personality.as_deref());
+
+    // Ollama wants a single "messages" array with the system message
+    // prepended as a "system" role. Translate from our internal shape.
+    let mut ollama_messages = vec![serde_json::json!({
+        "role": "system",
+        "content": system,
+    })];
+    for m in &messages {
+        ollama_messages.push(serde_json::json!({
+            "role": m.role,
+            "content": m.content,
+        }));
+    }
+
+    let request_body = serde_json::json!({
+        "model": model,
+        "messages": ollama_messages,
+        "stream": true,
+        "options": {
+            "num_predict": 800,
+        },
+    });
+
+    let client = reqwest::Client::new();
+    let url = format!("{}/api/chat", base_url.trim_end_matches('/'));
+    let resp = match client.post(&url).json(&request_body).send().await {
+        Ok(r) => r,
+        Err(e) => {
+            let msg = if e.is_connect() {
+                "OLLAMA_UNREACHABLE: Ollama isn't running. Start it with `ollama serve` or install it from ollama.com.".to_string()
+            } else {
+                format!("Ollama network error: {e}")
+            };
+            let _ = app.emit(
+                &format!("chat-chunk:{request_id}"),
+                ChatChunk::Error { message: msg.clone() },
+            );
+            return Err(msg);
+        }
+    };
+
+    if !resp.status().is_success() {
+        let status = resp.status();
+        let body = resp.text().await.unwrap_or_default();
+        let msg = if body.contains("model") && status.as_u16() == 404 {
+            format!(
+                "OLLAMA_MODEL_MISSING: Model '{model}' isn't pulled. Run `ollama pull {model}` and retry.",
+            )
+        } else {
+            format!("Ollama {status}: {body}")
+        };
+        let _ = app.emit(
+            &format!("chat-chunk:{request_id}"),
+            ChatChunk::Error { message: msg.clone() },
+        );
+        return Err(msg);
+    }
+
+    let _ = app.emit(
+        &format!("chat-chunk:{request_id}"),
+        ChatChunk::Start {
+            id: request_id.clone(),
+        },
+    );
+
+    let abort_flag = register_abort(&request_id);
+    let mut stream = resp.bytes_stream();
+    let mut buffer = String::new();
+    let mut cancelled = false;
+
+    while let Some(item) = stream.next().await {
+        if abort_flag.load(Ordering::SeqCst) {
+            cancelled = true;
+            break;
+        }
+        let bytes = match item {
+            Ok(b) => b,
+            Err(e) => {
+                let _ = app.emit(
+                    &format!("chat-chunk:{request_id}"),
+                    ChatChunk::Error { message: format!("Stream error: {e}") },
+                );
+                release_abort(&request_id);
+                return Err(format!("Stream error: {e}"));
+            }
+        };
+        buffer.push_str(&String::from_utf8_lossy(&bytes));
+
+        // Ollama uses newline-delimited JSON (one full JSON object per line).
+        while let Some(nl) = buffer.find('\n') {
+            let line = buffer[..nl].to_string();
+            buffer.drain(..=nl);
+            if line.trim().is_empty() {
+                continue;
+            }
+            let Ok(json): Result<serde_json::Value, _> = serde_json::from_str(&line) else {
+                continue;
+            };
+            if let Some(content) = json
+                .get("message")
+                .and_then(|m| m.get("content"))
+                .and_then(|c| c.as_str())
+            {
+                if !content.is_empty() {
+                    let _ = app.emit(
+                        &format!("chat-chunk:{request_id}"),
+                        ChatChunk::TextDelta { text: content.to_string() },
+                    );
+                }
+            }
+            if json.get("done").and_then(|d| d.as_bool()) == Some(true) {
+                break;
+            }
+        }
+    }
+
+    release_abort(&request_id);
+    drop(stream);
+
+    if cancelled {
+        let _ = app.emit(
+            &format!("chat-chunk:{request_id}"),
+            ChatChunk::Error { message: "ABORTED".to_string() },
+        );
+    } else {
+        let _ = app.emit(&format!("chat-chunk:{request_id}"), ChatChunk::Done);
+    }
+    Ok(())
+}
+
+/// Probe whether the local Ollama daemon is reachable. Returns a list of
+/// available model names if so; empty list if Ollama is running but no
+/// models are pulled; Err with a typed code if Ollama isn't reachable.
+#[tauri::command]
+pub async fn ollama_status(base_url: Option<String>) -> Result<Vec<String>, String> {
+    let base = base_url.unwrap_or_else(|| "http://localhost:11434".to_string());
+    let url = format!("{}/api/tags", base.trim_end_matches('/'));
+    let client = reqwest::Client::new();
+    let resp = client.get(&url).send().await.map_err(|e| {
+        if e.is_connect() {
+            "OLLAMA_UNREACHABLE".to_string()
+        } else {
+            format!("Ollama probe failed: {e}")
+        }
+    })?;
+    if !resp.status().is_success() {
+        return Err(format!("Ollama probe HTTP {}", resp.status()));
+    }
+    let body: serde_json::Value = resp
+        .json()
+        .await
+        .map_err(|e| format!("Ollama probe parse: {e}"))?;
+    let models = body
+        .get("models")
+        .and_then(|m| m.as_array())
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|m| {
+                    m.get("name")
+                        .and_then(|n| n.as_str())
+                        .map(|s| s.to_string())
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+    Ok(models)
 }
 
 #[tauri::command]

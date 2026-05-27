@@ -30,6 +30,7 @@ export type ChatMessage = {
 };
 
 export type Personality = "default" | "brief" | "tutor" | "friend";
+export type ChatProvider = "anthropic" | "ollama";
 
 type Persisted = {
   hotkey: string;
@@ -38,6 +39,10 @@ type Persisted = {
   qualityTier: "ultra" | "high" | "medium" | "low";
   voiceEnabled: boolean;
   personality: Personality;
+  /** Which chat backend to use. Anthropic (cloud) or Ollama (local). */
+  chatProvider: ChatProvider;
+  ollamaModel: string;
+  ollamaUrl: string;
   history: ChatMessage[][];
 };
 
@@ -78,6 +83,9 @@ type AppState = Persisted & {
   setQualityTier: (t: Persisted["qualityTier"]) => void;
   setVoiceEnabled: (b: boolean) => void;
   setPersonality: (p: Personality) => void;
+  setChatProvider: (p: ChatProvider) => void;
+  setOllamaModel: (m: string) => void;
+  setOllamaUrl: (u: string) => void;
 };
 
 const messageTimers = new Map<string, ReturnType<typeof setTimeout>>();
@@ -91,6 +99,9 @@ export const useApp = create<AppState>()(
       qualityTier: "high",
       voiceEnabled: false,
       personality: "default" as Personality,
+      chatProvider: "anthropic" as ChatProvider,
+      ollamaModel: "llama3.2",
+      ollamaUrl: "http://localhost:11434",
       history: [],
 
       mood: "idle",
@@ -197,6 +208,9 @@ export const useApp = create<AppState>()(
       setQualityTier: (qualityTier) => set({ qualityTier }),
       setVoiceEnabled: (voiceEnabled) => set({ voiceEnabled }),
       setPersonality: (personality) => set({ personality }),
+      setChatProvider: (chatProvider) => set({ chatProvider }),
+      setOllamaModel: (ollamaModel) => set({ ollamaModel }),
+      setOllamaUrl: (ollamaUrl) => set({ ollamaUrl }),
     }),
     {
       name: "buddy-app-state",
@@ -209,6 +223,9 @@ export const useApp = create<AppState>()(
           qualityTier: s.qualityTier,
           voiceEnabled: s.voiceEnabled,
           personality: s.personality,
+          chatProvider: s.chatProvider,
+          ollamaModel: s.ollamaModel,
+          ollamaUrl: s.ollamaUrl,
           history: s.history.slice(-20),
         }) satisfies Persisted,
       skipHydration: true,

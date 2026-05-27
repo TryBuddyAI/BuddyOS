@@ -335,6 +335,7 @@ pub fn run() {
             open_accessibility_settings,
             chat::stream_chat,
             chat::abort_chat,
+            chat::ollama_status,
             chat::set_api_key,
             chat::has_api_key,
             chat::clear_api_key,

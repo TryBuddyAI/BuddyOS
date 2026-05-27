@@ -71,15 +71,26 @@ export function isAccessibilityError(err: unknown): boolean {
   return typeof err === "string" && err.includes("ACCESSIBILITY_DENIED");
 }
 
+export type StreamChatOptions = {
+  personality?: string;
+  /** "anthropic" (default) or "ollama". */
+  provider?: "anthropic" | "ollama";
+  /** Required when provider === "ollama". e.g. "llama3.2". */
+  ollamaModel?: string;
+  /** Required when provider === "ollama". e.g. "http://localhost:11434". */
+  ollamaUrl?: string;
+};
+
 /**
- * Stream a chat completion. The Rust side proxies Anthropic streaming and
- * emits `chat-chunk:<id>` events with `ChatChunk` payloads. Returns an
- * abort function that unlistens and (best-effort) requests cancellation.
+ * Stream a chat completion. The Rust side proxies the chosen backend's
+ * streaming (Anthropic SSE or Ollama NDJSON) and emits `chat-chunk:<id>`
+ * events with `ChatChunk` payloads. Returns an abort function that
+ * unlistens and (best-effort) requests cancellation.
  */
 export async function streamChat(
   messages: ChatTurn[],
   onChunk: (chunk: ChatChunk) => void,
-  personality?: string,
+  options: StreamChatOptions = {},
 ): Promise<{ requestId: string; abort: () => Promise<void> }> {
   const requestId = nanoid();
   const event = `chat-chunk:${requestId}`;
@@ -87,16 +98,23 @@ export async function streamChat(
     onChunk(e.payload),
   );
 
-  invoke("stream_chat", { requestId, messages, personality }).catch((err) => {
+  invoke("stream_chat", {
+    requestId,
+    messages,
+    personality: options.personality,
+    provider: options.provider,
+    ollamaModel: options.ollamaModel,
+    ollamaUrl: options.ollamaUrl,
+  }).catch((err) => {
     onChunk({ type: "error", message: String(err) });
   });
 
   return {
     requestId,
     abort: async () => {
-      // Flip the server-side abort flag so the SSE loop breaks and stops
-      // billing. The unlisten happens after, since aborts are infrequent
-      // and we'd rather block briefly than leak a listener.
+      // Flip the server-side abort flag so the SSE/NDJSON loop breaks and
+      // stops billing. The unlisten happens after, since aborts are
+      // infrequent and we'd rather block briefly than leak a listener.
       try {
         await invoke("abort_chat", { requestId });
       } catch {
@@ -105,4 +123,21 @@ export async function streamChat(
       unlisten();
     },
   };
+}
+
+/**
+ * Probe an Ollama server's `/api/tags` endpoint. Returns the list of model
+ * names available locally, or throws "OLLAMA_UNREACHABLE" if the daemon
+ * isn't running.
+ */
+export async function ollamaStatus(baseUrl?: string): Promise<string[]> {
+  return invoke("ollama_status", { baseUrl });
+}
+
+export function isOllamaUnreachable(err: unknown): boolean {
+  return typeof err === "string" && err.includes("OLLAMA_UNREACHABLE");
+}
+
+export function isOllamaModelMissing(err: unknown): boolean {
+  return typeof err === "string" && err.includes("OLLAMA_MODEL_MISSING");
 }

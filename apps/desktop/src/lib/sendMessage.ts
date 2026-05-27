@@ -181,7 +181,8 @@ export async function sendMessage(text: string) {
   history.push({ role: "user", content: trimmed });
 
   let sawFirstToken = false;
-  const personality = useApp.getState().personality;
+  const { personality, chatProvider, ollamaModel, ollamaUrl } =
+    useApp.getState();
 
   const handle = await streamChat(
     history,
@@ -244,7 +245,12 @@ export async function sendMessage(text: string) {
         break;
     }
     },
-    personality,
+    {
+      personality,
+      provider: chatProvider,
+      ollamaModel,
+      ollamaUrl,
+    },
   );
 
   // Park the abort handle in the store so Esc / new-chat / window-hide

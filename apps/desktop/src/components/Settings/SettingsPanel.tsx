@@ -18,8 +18,10 @@ import {
   setApiKey,
   quitApp,
   clearApiKey,
+  ollamaStatus,
+  isOllamaUnreachable,
 } from "../../lib/ipc";
-import { useApp, type Personality } from "../../lib/store";
+import { useApp, type Personality, type ChatProvider } from "../../lib/store";
 import { HotkeyCapture } from "../Onboarding/HotkeyCapture";
 
 type Tier = "ultra" | "high" | "medium" | "low";
@@ -53,6 +55,12 @@ export function SettingsPanel() {
   const setVoiceEnabled = useApp((s) => s.setVoiceEnabled);
   const personality = useApp((s) => s.personality);
   const setPersonality = useApp((s) => s.setPersonality);
+  const chatProvider = useApp((s) => s.chatProvider);
+  const setChatProvider = useApp((s) => s.setChatProvider);
+  const ollamaModel = useApp((s) => s.ollamaModel);
+  const setOllamaModel = useApp((s) => s.setOllamaModel);
+  const ollamaUrl = useApp((s) => s.ollamaUrl);
+  const setOllamaUrl = useApp((s) => s.setOllamaUrl);
   const newSession = useApp((s) => s.newSession);
   const setOnboarded = useApp((s) => s.setOnboarded);
   const messageCount = useApp((s) => s.messages.length);
@@ -75,6 +83,34 @@ export function SettingsPanel() {
   const [openaiSaving, setOpenaiSaving] = useState(false);
   const [openaiMsg, setOpenaiMsg] = useState<string | null>(null);
 
+  // Ollama status — list of locally-pulled models, or unreachable
+  const [ollamaModels, setOllamaModels] = useState<string[] | null>(null);
+  const [ollamaError, setOllamaError] = useState<string | null>(null);
+  const [ollamaProbing, setOllamaProbing] = useState(false);
+
+  const probeOllama = async () => {
+    setOllamaProbing(true);
+    setOllamaError(null);
+    try {
+      const models = await ollamaStatus(ollamaUrl);
+      setOllamaModels(models);
+      // Auto-correct a missing model — pick the first one available so the
+      // dropdown isn't pointing at a ghost.
+      if (models.length > 0 && !models.includes(ollamaModel)) {
+        setOllamaModel(models[0]);
+      }
+    } catch (e) {
+      setOllamaModels(null);
+      setOllamaError(
+        isOllamaUnreachable(e)
+          ? `Couldn't reach Ollama at ${ollamaUrl}. Start it with \`ollama serve\`.`
+          : String(e),
+      );
+    } finally {
+      setOllamaProbing(false);
+    }
+  };
+
   useEffect(() => {
     defaultHotkeyLabel().then((label) => {
       setDefaultCombo(label);
@@ -83,6 +119,14 @@ export function SettingsPanel() {
     hasApiKey("anthropic").then(setKeyPresent);
     hasApiKey("openai").then(setOpenaiPresent);
   }, [storeHotkey]);
+
+  // Probe Ollama whenever the user is *on* the Ollama provider so the model
+  // dropdown stays current. Cheap GET to /api/tags, ~5 ms when local.
+  useEffect(() => {
+    if (chatProvider !== "ollama") return;
+    probeOllama();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chatProvider, ollamaUrl]);
 
   const saveOpenAIKey = async () => {
     setOpenaiSaving(true);
@@ -261,6 +305,131 @@ export function SettingsPanel() {
               </button>
             )}
           </div>
+        </section>
+
+        {/* CHAT BACKEND */}
+        <section>
+          <p className="eyebrow">CHAT BACKEND</p>
+          <p className="mt-1 text-[12.5px] text-[var(--text-dim)]">
+            Where BUDDY thinks. Anthropic is cloud-hosted Claude. Ollama runs a
+            local model on your machine — no key, no network, free.
+          </p>
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            {([
+              {
+                value: "anthropic" as ChatProvider,
+                label: "Anthropic",
+                hint: "Claude — needs API key, smarter, costs $",
+              },
+              {
+                value: "ollama" as ChatProvider,
+                label: "Ollama (local)",
+                hint: "Runs on your machine, free, no network",
+              },
+            ]).map(({ value, label, hint }) => {
+              const active = chatProvider === value;
+              return (
+                <button
+                  key={value}
+                  onClick={() => setChatProvider(value)}
+                  className={
+                    "focus-ring flex flex-col items-start rounded-xl border px-3 py-2 text-left transition-colors " +
+                    (active
+                      ? "border-[var(--accent)] bg-[rgba(0,217,126,0.08)]"
+                      : "border-white/[0.08] hover:border-white/20")
+                  }
+                >
+                  <span className="text-[13px] font-semibold text-white">
+                    {label}
+                  </span>
+                  <p className="mt-0.5 text-[11px] text-[var(--text-dim)]">
+                    {hint}
+                  </p>
+                </button>
+              );
+            })}
+          </div>
+
+          {chatProvider === "ollama" && (
+            <div className="mt-4 space-y-3 rounded-xl border border-white/[0.06] bg-white/[0.02] p-3">
+              <div>
+                <label className="text-[11px] uppercase tracking-[0.18em] text-[var(--text-faint)]">
+                  Ollama URL
+                </label>
+                <input
+                  type="text"
+                  value={ollamaUrl}
+                  onChange={(e) => setOllamaUrl(e.target.value)}
+                  placeholder="http://localhost:11434"
+                  className="glass-frost focus-ring mt-1.5 h-9 w-full rounded-full bg-transparent px-3 text-[12.5px] text-white outline-none placeholder:text-[var(--text-faint)]"
+                />
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between">
+                  <label className="text-[11px] uppercase tracking-[0.18em] text-[var(--text-faint)]">
+                    Model
+                  </label>
+                  <button
+                    onClick={probeOllama}
+                    disabled={ollamaProbing}
+                    className="focus-ring inline-flex items-center gap-1 text-[11px] text-[var(--text-dim)] underline-offset-2 hover:text-white hover:underline disabled:opacity-50"
+                  >
+                    <RefreshCw size={10} />
+                    {ollamaProbing ? "Checking…" : "Refresh"}
+                  </button>
+                </div>
+                {ollamaModels && ollamaModels.length > 0 ? (
+                  <select
+                    value={ollamaModel}
+                    onChange={(e) => setOllamaModel(e.target.value)}
+                    className="glass-frost focus-ring mt-1.5 h-9 w-full rounded-full bg-transparent px-3 text-[12.5px] text-white outline-none"
+                  >
+                    {ollamaModels.map((m) => (
+                      <option key={m} value={m} className="bg-[var(--canvas)]">
+                        {m}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <input
+                    type="text"
+                    value={ollamaModel}
+                    onChange={(e) => setOllamaModel(e.target.value)}
+                    placeholder="llama3.2"
+                    className="glass-frost focus-ring mt-1.5 h-9 w-full rounded-full bg-transparent px-3 text-[12.5px] text-white outline-none placeholder:text-[var(--text-faint)]"
+                  />
+                )}
+              </div>
+
+              {ollamaError && (
+                <p className="text-[11.5px] leading-[1.55] text-[var(--accent-warm)]">
+                  {ollamaError}
+                  <br />
+                  <span className="text-[var(--text-dim)]">
+                    Try:{" "}
+                    <code className="rounded bg-white/5 px-1 py-0.5 font-mono text-[10.5px]">
+                      brew install ollama && ollama serve
+                    </code>
+                  </span>
+                </p>
+              )}
+              {ollamaModels && ollamaModels.length === 0 && (
+                <p className="text-[11.5px] leading-[1.55] text-[var(--text-dim)]">
+                  Ollama is running but you haven't pulled any models. Try:{" "}
+                  <code className="rounded bg-white/5 px-1 py-0.5 font-mono text-[10.5px]">
+                    ollama pull llama3.2
+                  </code>
+                </p>
+              )}
+              {ollamaModels && ollamaModels.length > 0 && !ollamaError && (
+                <p className="text-[11.5px] text-[var(--accent)]">
+                  ● Connected — {ollamaModels.length} model
+                  {ollamaModels.length === 1 ? "" : "s"} available
+                </p>
+              )}
+            </div>
+          )}
         </section>
 
         {/* PERSONALITY */}
