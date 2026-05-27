@@ -1,0 +1,30 @@
+name: BUDDY · auto-merge (green tier)
+
+# When a PR opens or is updated, if it has the `tier-green` label AND was
+# authored by the improver agent, enable GitHub's "auto-merge" feature.
+# Branch protection then waits for CI to pass before squashing it onto
+# main. Yellow and red tiers stay open for human review.
+
+on:
+  pull_request:
+    types: [opened, labeled, reopened, synchronize]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  enable-automerge:
+    if: |
+      contains(github.event.pull_request.labels.*.name, 'tier-green') &&
+      (github.event.pull_request.user.login == 'buddy-bot[bot]' ||
+       startsWith(github.event.pull_request.head.ref, 'buddy/auto/'))
+    runs-on: ubuntu-latest
+    steps:
+      - name: Enable auto-merge
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh pr merge "${{ github.event.pull_request.number }}" \
+            --repo "${{ github.repository }}" \
+            --squash --auto --delete-branch

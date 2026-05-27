@@ -24,6 +24,13 @@ Focus on your work and he vanishes.
 [![React](https://img.shields.io/badge/React%2019-1A1F2E?style=for-the-badge&logo=react)](https://react.dev)
 [![Claude](https://img.shields.io/badge/Powered%20by%20Claude-FF6B35?style=for-the-badge&logo=anthropic&logoColor=white)](https://anthropic.com)
 [![Status](https://img.shields.io/badge/status-alpha-FF6B35?style=for-the-badge)](docs/ROADMAP.md)
+[![Self-maintaining](https://img.shields.io/badge/self--maintaining-30min%20agent-A5FFD9?style=for-the-badge&logo=githubactions&logoColor=white)](docs/AGENT.md)
+
+<br />
+
+> 🤖 **This repo is partly self-maintained.** A Claude agent audits the
+> codebase weekly and ships safe improvements every 30 minutes via PRs.
+> See [`docs/AGENT.md`](docs/AGENT.md).
 
 <br />
 
@@ -32,6 +39,7 @@ Focus on your work and he vanishes.
 [**Personality**](#-personality) ·
 [**Architecture**](docs/ARCHITECTURE.md) ·
 [**Roadmap**](docs/ROADMAP.md) ·
+[**Self-maintenance**](docs/AGENT.md) ·
 [**Contribute**](CONTRIBUTING.md)
 
 </div>

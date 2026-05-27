@@ -1,0 +1,9 @@
+# Anything under the agent governance dirs requires the org owner to
+# review. The agent itself is forbidden by policy.md from editing these,
+# but CODEOWNERS is the belt-and-suspenders.
+
+.github/agent/*           @TryBuddyAI
+.github/workflows/auto-*  @TryBuddyAI
+.github/CODEOWNERS        @TryBuddyAI
+SECURITY.md               @TryBuddyAI
+LICENSE                   @TryBuddyAI
