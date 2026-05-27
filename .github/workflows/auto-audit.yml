@@ -1,17 +1,18 @@
 name: BUDDY · auto-audit
 
-# Weekly audit pass. Opens up to 5 new issues labeled `auto-eligible`,
-# which the improver workflow then picks up on its 30-minute cycle.
+# Daily audit pass. Opens up to 5 new issues labeled `auto-eligible`,
+# which the improver workflow picks up on its 10-minute cycle.
 #
 # Disable: create the file .github/agent/PAUSED on main.
 # Manual run: gh workflow run "BUDDY · auto-audit"
+#
+# Cost note: daily, ~$2-3 per run. ~$60-90/month.
 
 on:
   schedule:
-    # Mondays 09:00 UTC. The audit shouldn't run too often — most
-    # findings come from real codebase changes, which only land a few
-    # times a week.
-    - cron: "0 9 * * 1"
+    # Daily at 09:00 UTC. Catches whatever shipped in the last 24 hours
+    # plus anything that drifted from older fixes.
+    - cron: "0 9 * * *"
   workflow_dispatch:
 
 permissions:

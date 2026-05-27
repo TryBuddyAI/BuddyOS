@@ -9,8 +9,8 @@ Every auto-generated PR gets exactly one tier label.
 
 | Label | What it covers | Auto-merge? |
 |---|---|---|
-| `tier-green` | typo fixes, comment clarifications, doc rewrites, dep version bumps (patch only), lint/format autofixes, dead code removal, type-annotation tightening, test additions, README polish | YES — if CI passes |
-| `tier-yellow` | small refactors, new utility functions, error-handling improvements, performance tweaks with measurable wins, new test scaffolding, minor UX polish | NO — opens for maintainer review |
+| `tier-green` | typo fixes, comment clarifications, doc rewrites, dep version bumps (patch only), lint/format autofixes, dead code removal, type-annotation tightening, test additions, README polish | YES — instantly if CI passes |
+| `tier-yellow` | small refactors, new utility functions, error-handling improvements, performance tweaks with measurable wins, new test scaffolding, minor UX polish, design tweaks at component scope | YES — after a **60-minute cooloff** with CI still green and no human change-requests |
 | `tier-red` | new features, dependency additions, breaking changes, security-adjacent code, license/auth changes, UX redesigns, schema migrations, anything touching `src-tauri/src/lib.rs` or chat.rs core | NO — opens as DRAFT, never auto-merge |
 
 When in doubt, escalate one tier.
@@ -46,12 +46,18 @@ If any check fails, the agent fixes it OR abandons the run with a clear
 Pick from open issues with label `auto-eligible` in this priority order:
 
 1. `tier-green` + most recent (LIFO so fresh ideas land fast)
-2. `tier-yellow` + most thumbs-up reactions
-3. Skip `tier-red` entirely — those require a human author
+2. `tier-yellow` + most recent
+3. Issues labeled `design` get the same tier treatment as everything else
+   — there is no separate design queue. Pick whichever tier-green/yellow
+   issue is freshest, design or otherwise.
+4. Skip `tier-red` entirely — those require a human author.
 
 If no eligible issue exists, exit cleanly with `echo "no work" && exit 0`.
 A no-work run should consume < 5,000 tokens (read the issue list, decide,
 exit).
+
+The improver runs every 10 minutes; the auditor and design critic run
+daily. Idle runs are expected and cheap.
 
 ## Commit + PR shape
 

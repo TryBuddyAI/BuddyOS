@@ -6,25 +6,36 @@ how to disable it.
 
 ## TL;DR
 
-Two scheduled GitHub Actions:
+Four scheduled GitHub Actions, fully autonomous:
 
-1. **`auto-audit`** — runs every Monday at 09:00 UTC. A Claude agent reads
-   the codebase, finds up to 5 real bottlenecks, and opens GitHub issues
-   labeled `auto-eligible`.
-2. **`auto-improve`** — runs every 30 minutes. A second Claude agent
-   picks the highest-priority open `auto-eligible` issue, implements the
-   smallest possible fix, verifies it compiles, and opens a PR.
+1. **`auto-audit`** — daily at 09:00 UTC. Scans `apps/*` for real
+   bottlenecks/bugs/perf issues, opens up to 5 issues labeled
+   `auto-eligible`.
+2. **`auto-design`** — daily at 08:00 UTC. Audits the visual + UX +
+   branding + copywriting quality of both `apps/site` and
+   `apps/desktop` against best-in-class references (Linear, Raycast,
+   Arc, Stripe, Vercel) and opens up to 3 issues labeled
+   `auto-eligible,design`.
+3. **`auto-improve`** — runs **every 10 minutes**. Picks the freshest
+   open `auto-eligible` issue (code or design), implements the
+   smallest fix, verifies it compiles, opens a PR.
+4. **`auto-merge-yellow`** — runs every 15 minutes. For tier-yellow
+   PRs older than 60 minutes with CI still green and no human
+   change-requests, enables auto-merge.
 
-PRs labeled `tier-green` auto-merge if CI passes. `tier-yellow` waits for
-a human reviewer. `tier-red` opens as a draft and never auto-merges.
+PR auto-merge policy:
+- **`tier-green`** → instant auto-merge once CI passes
+- **`tier-yellow`** → auto-merge after a 60-minute cooloff (gives a
+  human time to walk in and block)
+- **`tier-red`** → opens as a draft, never auto-merges
 
 ## What the agent can change
 
 | Label | Examples | Auto-merge? |
 |---|---|---|
-| `tier-green` | typo fixes, lint autofixes, dead code removal, comment clarifications, patch-level dep bumps, doc rewrites, test additions, type-annotation tightening | yes if CI green |
-| `tier-yellow` | small refactors, new utility functions, error-handling improvements, minor UX polish | no — review required |
-| `tier-red` | new features, dep additions, breaking changes, anything in `chat.rs` / `lib.rs` / `keychain.rs`, schema migrations, UX redesigns | no — draft only |
+| `tier-green` | typo fixes, lint autofixes, dead code removal, comment clarifications, patch-level dep bumps, doc rewrites, test additions, type-annotation tightening, single-component spacing fixes, contrast tweaks, missing focus rings | instant if CI green |
+| `tier-yellow` | small refactors, new utility functions, error-handling improvements, minor UX polish, section-scope design polish (hero, pricing, settings panel), hover/loading states, type-scale normalization | yes — 60-min cooloff + CI green + no change-requests |
+| `tier-red` | new features, dep additions, breaking changes, anything in `chat.rs` / `lib.rs` / `keychain.rs`, schema migrations, full layout redesigns, mascot/font swaps, nav restructures | no — draft only |
 
 The complete policy lives in [`.github/agent/policy.md`](../.github/agent/policy.md).
 
@@ -76,13 +87,30 @@ You can also disable a specific workflow from the Actions tab in GitHub.
 
 ## Cost
 
-- Audit: ~$1–3 per weekly run.
-- Improver: ~$0.05 per no-work run, ~$0.50–2 per substantive run.
-- 30-minute cadence × 48 runs/day, with most idle, lands in
-  **~$60–150/month** in token spend when the queue has work.
+At the current 10-minute cadence:
 
-If costs spike, raise the cadence (cron `0 */1 * * *` = hourly) or pause
-the loop entirely.
+- **Auditor** (daily): ~$2–3 per run → **~$60–90/month**
+- **Design critic** (daily): ~$2–3 per run → **~$60–90/month**
+- **Improver** (10-min): ~$0.05 per no-work run, ~$0.50–2 per
+  substantive run. 144 runs/day × mostly idle = ~$7/day floor +
+  ~$30/day when queue has work → **~$200–1000/month**
+- **Yellow-merge sweeper** (15-min): no Claude tokens, just gh CLI
+  → **~$0/month**
+
+Realistic monthly range: **~$300/month idle, ~$1,000–1,200 at full
+tilt** with a steady stream of issues.
+
+If costs spike, you have three knobs:
+
+```bash
+# 1. Slow the improver to 15-min cadence — half the spend
+sed -i '' 's|cron: "\*/10 \* \* \* \*"|cron: "*/15 * * * *"|' .github/workflows/auto-improve.yml
+
+# 2. Slow it to 30-min — original cost (~$60-150/mo)
+sed -i '' 's|cron: "\*/10 \* \* \* \*"|cron: "*/30 * * * *"|' .github/workflows/auto-improve.yml
+
+# 3. Pause entirely (kill switch — see below)
+```
 
 ## Observability
 

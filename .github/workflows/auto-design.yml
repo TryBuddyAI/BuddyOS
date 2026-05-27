@@ -1,0 +1,65 @@
+name: BUDDY · auto-design
+
+# Daily design + branding + UX critic. Reads the marketing site source
+# (apps/site) and the desktop app source (apps/desktop), compares
+# against current best-in-class references (Linear, Raycast, Arc,
+# Vercel, Stripe), and opens up to 3 issues per run labeled:
+#
+#   auto-eligible, design, tier-<green|yellow|red>
+#
+# The improver workflow then picks them up on its 10-minute cycle.
+#
+# Disable: create .github/agent/PAUSED on main.
+# Manual run: gh workflow run "BUDDY · auto-design"
+#
+# Cost note: daily, ~$2-3 per run. ~$60-90/month.
+
+on:
+  schedule:
+    # Daily at 08:00 UTC (low-traffic, also catches overnight commits).
+    - cron: "0 8 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: read
+
+concurrency:
+  group: buddy-auto-design
+  cancel-in-progress: false
+
+jobs:
+  design-audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check kill switch
+        id: paused
+        run: |
+          if [ -f .github/agent/PAUSED ]; then
+            echo "result=true" >> $GITHUB_OUTPUT
+            echo "::notice::auto-design paused via .github/agent/PAUSED"
+          else
+            echo "result=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Run Claude design critic
+        if: steps.paused.outputs.result == 'false'
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          max_tokens: 250000
+          allowed_tools: "Read,Glob,Grep,Bash(gh issue list:*),Bash(gh issue create:*),Bash(gh issue view:*)"
+          prompt: |
+            Read .github/agent/policy.md and .github/agent/design.md and
+            follow them exactly. The repo is TryBuddyAI/BuddyOS. The
+            GitHub CLI is already authenticated via GITHUB_TOKEN.
+
+            Audit the visual + UX quality of apps/site (marketing) and
+            apps/desktop (Tauri app). Open up to 3 new issues labeled
+            auto-eligible + design + a tier label. Then exit cleanly.
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

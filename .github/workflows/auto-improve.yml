@@ -1,19 +1,22 @@
 name: BUDDY · auto-improve
 
-# Every 30 minutes, an agent picks one open `auto-eligible` issue and
-# implements it on a branch + opens a PR. Tier:green PRs auto-merge once
-# CI passes (see auto-merge.yml). Tier:yellow waits for review.
+# Every 10 minutes, an agent picks one open `auto-eligible` issue and
+# implements it on a branch + opens a PR. Tier-green PRs auto-merge once
+# CI passes (see auto-merge.yml). Tier-yellow PRs auto-merge after a
+# 1-hour cooloff if CI stayed green (see auto-merge-yellow.yml).
+# Tier-red opens as a draft and never auto-merges.
 #
 # Disable: create .github/agent/PAUSED on main.
 # Manual run: gh workflow run "BUDDY · auto-improve"
 #
-# Cost note: at 30-min cadence, expect ~$60-150/month of Anthropic spend
-# if there's steady work in the queue. Most runs find nothing and exit
-# cheaply (~$0.05).
+# Cost note: at 10-min cadence, expect ~$200-1000/month of Anthropic
+# spend depending on queue depth. Idle no-work runs are ~$0.05 each
+# (144 × $0.05 ≈ $7/day floor); active fix runs are ~$1 each.
+# If cost spikes, raise the cron to */15 or */30 — see docs/AGENT.md.
 
 on:
   schedule:
-    - cron: "*/30 * * * *"
+    - cron: "*/10 * * * *"
   workflow_dispatch:
 
 permissions:

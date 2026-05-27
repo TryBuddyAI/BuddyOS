@@ -1,0 +1,132 @@
+name: BUDDY · auto-merge (yellow tier, 1hr cooloff)
+
+# Tier-yellow PRs (small refactors, UX polish, design changes, new
+# utilities, error-handling improvements) auto-merge if they've been
+# open ≥ 60 minutes AND CI is currently green AND nobody has requested
+# changes. This is the "trust but verify" tier — the cooloff gives a
+# human a chance to walk in and block before the merge happens.
+#
+# Tier-green merges instantly (see auto-merge.yml).
+# Tier-red never auto-merges.
+#
+# Runs every 15 minutes — frequent enough that a freshly-opened
+# tier-yellow PR merges within ~75 min of opening, infrequent enough
+# that the API budget stays trivial.
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+  checks: read
+
+concurrency:
+  group: buddy-auto-merge-yellow
+  cancel-in-progress: false
+
+jobs:
+  process-yellow:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check kill switch
+        id: paused
+        run: |
+          if [ -f .github/agent/PAUSED ]; then
+            echo "result=true" >> $GITHUB_OUTPUT
+            echo "::notice::auto-merge-yellow paused via .github/agent/PAUSED"
+          else
+            echo "result=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Process aged tier-yellow PRs
+        if: steps.paused.outputs.result == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          # 60-minute cooloff before yellow can auto-merge.
+          CUTOFF_MIN=60
+
+          # Pull all open PRs labeled tier-yellow authored by the bot.
+          # Fields: number, createdAt, mergeable, mergeStateStatus,
+          # reviewDecision, statusCheckRollup, headRefName.
+          mapfile -t prs < <(
+            gh pr list \
+              --repo "${{ github.repository }}" \
+              --state open \
+              --label tier-yellow \
+              --author "buddy-bot[bot]" \
+              --json number,createdAt,mergeable,mergeStateStatus,reviewDecision,statusCheckRollup,headRefName \
+              --jq '.[] | @base64'
+          )
+
+          if [ "${#prs[@]}" -eq 0 ]; then
+            echo "no tier-yellow PRs awaiting cooloff"
+            exit 0
+          fi
+
+          now_epoch=$(date -u +%s)
+
+          for row in "${prs[@]}"; do
+            pr=$(echo "$row" | base64 --decode)
+            num=$(echo "$pr" | jq -r '.number')
+            created=$(echo "$pr" | jq -r '.createdAt')
+            mergeable=$(echo "$pr" | jq -r '.mergeable')
+            mstate=$(echo "$pr" | jq -r '.mergeStateStatus')
+            review=$(echo "$pr" | jq -r '.reviewDecision')
+
+            created_epoch=$(date -u -d "$created" +%s 2>/dev/null \
+              || python3 -c "import datetime,sys;print(int(datetime.datetime.fromisoformat(sys.argv[1].replace('Z','+00:00')).timestamp()))" "$created")
+            age_min=$(( (now_epoch - created_epoch) / 60 ))
+
+            echo "PR #$num — age=${age_min}m mergeable=$mergeable state=$mstate review=$review"
+
+            # Cooloff gate
+            if [ "$age_min" -lt "$CUTOFF_MIN" ]; then
+              echo "  → cooloff not yet expired ($CUTOFF_MIN min); skipping"
+              continue
+            fi
+
+            # Block if a human asked for changes
+            if [ "$review" = "CHANGES_REQUESTED" ]; then
+              echo "  → human requested changes; skipping"
+              continue
+            fi
+
+            # Must be mergeable + checks must have settled green.
+            # `BLOCKED` covers required-checks-failing.
+            if [ "$mergeable" != "MERGEABLE" ]; then
+              echo "  → not mergeable (merge conflicts?); skipping"
+              continue
+            fi
+            if [ "$mstate" = "BLOCKED" ] || [ "$mstate" = "DIRTY" ] || [ "$mstate" = "UNSTABLE" ]; then
+              echo "  → merge state $mstate; skipping"
+              continue
+            fi
+
+            # Look at the status check rollup — every non-skipped check
+            # must be SUCCESS. (jq filter excludes Skipped/Neutral.)
+            failing=$(echo "$pr" | jq -r '
+              [.statusCheckRollup[]?
+                | select(.status == "COMPLETED")
+                | select((.conclusion // "SUCCESS") | IN("SUCCESS","NEUTRAL","SKIPPED") | not)
+              ] | length
+            ')
+            if [ "$failing" != "0" ] && [ -n "$failing" ]; then
+              echo "  → $failing CI checks failing; skipping"
+              continue
+            fi
+
+            echo "  → enabling auto-merge"
+            gh pr merge "$num" \
+              --repo "${{ github.repository }}" \
+              --squash --auto --delete-branch \
+              || echo "  → merge enable failed (likely already enabled)"
+          done
