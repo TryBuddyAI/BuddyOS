@@ -38,6 +38,7 @@ export function CustomCursor() {
     ).matches;
     if (!finePointer || reduced) return;
 
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time pointer/motion capability gate after mount (SSR-safe)
     setEnabled(true);
     document.documentElement.classList.add("has-custom-cursor");
 

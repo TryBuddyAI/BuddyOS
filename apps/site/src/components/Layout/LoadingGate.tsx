@@ -47,6 +47,7 @@ export function LoadingGate() {
     const prefersReduced = window.matchMedia(
       "(prefers-reduced-motion: reduce)",
     ).matches;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time client media-query read after mount (SSR-safe)
     setReduced(prefersReduced);
 
     let rafId = 0;

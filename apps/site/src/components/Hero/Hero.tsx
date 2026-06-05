@@ -68,7 +68,7 @@ export function Hero() {
       {/* Soft floor gradient for legibility */}
       <div className="pointer-events-none absolute inset-x-0 top-[55vh] h-[45vh] bg-gradient-to-b from-transparent via-[var(--canvas)]/70 to-[var(--canvas)]" />
 
-      <div className="relative z-10 mx-auto flex min-h-screen max-w-7xl flex-col px-6 pt-28 md:pt-32">
+      <div className="relative z-10 mx-auto flex min-h-screen max-w-7xl flex-col px-6 pt-[34vh] md:pt-32">
         <div className="grid flex-1 grid-cols-1 items-center gap-12 pb-12 md:grid-cols-12 md:gap-6">
           {/* Left column — copy + CTAs */}
           <div className="md:col-span-6 lg:col-span-5">
@@ -86,7 +86,7 @@ export function Hero() {
               />
             </motion.span>
 
-            <h1 className="display mt-6 text-[clamp(52px,7.5vw,92px)]">
+            <h1 className="display mt-6 text-[clamp(38px,8vw,92px)]">
               {HEADLINE.map(({ word, accent }, i) => (
                 <span
                   key={`${word}-${i}`}

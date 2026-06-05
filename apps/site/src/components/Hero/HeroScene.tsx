@@ -8,24 +8,33 @@ import {
   EffectComposer,
   Vignette,
 } from "@react-three/postprocessing";
-import { Suspense, useEffect, useRef, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { useFrame } from "@react-three/fiber";
 
 function DustParticles({ count = 180 }: { count?: number }) {
   const ref = useRef<THREE.Points>(null);
 
-  const { positions, speeds } = (() => {
+  const { positions, speeds } = useMemo(() => {
+    // Deterministic PRNG (mulberry32) so the particle field is stable across
+    // renders and pure during render (no Math.random in the render path).
+    let s = (0x9e3779b9 ^ count) >>> 0;
+    const rand = () => {
+      s = (s + 0x6d2b79f5) | 0;
+      let t = Math.imul(s ^ (s >>> 15), 1 | s);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
     const positions = new Float32Array(count * 3);
     const speeds = new Float32Array(count);
     for (let i = 0; i < count; i++) {
-      positions[i * 3] = (Math.random() - 0.5) * 22;
-      positions[i * 3 + 1] = (Math.random() - 0.5) * 12;
-      positions[i * 3 + 2] = (Math.random() - 0.5) * 10 - 2;
-      speeds[i] = 0.02 + Math.random() * 0.04;
+      positions[i * 3] = (rand() - 0.5) * 22;
+      positions[i * 3 + 1] = (rand() - 0.5) * 12;
+      positions[i * 3 + 2] = (rand() - 0.5) * 10 - 2;
+      speeds[i] = 0.02 + rand() * 0.04;
     }
     return { positions, speeds };
-  })();
+  }, [count]);
 
   useFrame(() => {
     if (!ref.current) return;
@@ -119,6 +128,7 @@ export function HeroScene() {
 
   useEffect(() => {
     const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time client media-query read after mount (SSR-safe)
     setReduced(mq.matches);
     const onChange = () => setReduced(mq.matches);
     mq.addEventListener("change", onChange);

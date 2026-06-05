@@ -35,6 +35,7 @@ export function ScrambleText({
       "(prefers-reduced-motion: reduce)",
     ).matches;
     if (reduced) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- settle to final text when motion is reduced or `text` changes
       setDisplay(text);
       return;
     }

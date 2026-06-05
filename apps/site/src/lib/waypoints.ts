@@ -12,9 +12,10 @@ export const waypoints: Waypoint[] = [
     scrollProgress: 0.0,
     sectionId: "hero",
     anchor: { x: 0.72, y: 0.42 },
-    mobileAnchor: { x: 0.85, y: 0.18 },
+    // Mobile: small + high so BUDDY floats above the stacked copy, not over it.
+    mobileAnchor: { x: 0.5, y: 0.16 },
     scale: 2.0,
-    mobileScale: 0.7,
+    mobileScale: 0.52,
     message: "Hey. I'm BUDDY.",
     messageDelay: 1400,
     messageDuration: 4500,

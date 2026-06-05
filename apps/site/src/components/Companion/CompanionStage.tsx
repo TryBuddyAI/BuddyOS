@@ -80,6 +80,7 @@ export function CompanionStage() {
   const [supported, setSupported] = useState<boolean | null>(null);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time WebGL capability probe after mount (SSR-safe)
     setSupported(detectWebGL());
   }, []);
 

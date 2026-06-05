@@ -17,6 +17,7 @@ export function FinalCta() {
   const [os, setOs] = useState<OS>("Mac");
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time OS detection after mount (SSR-safe)
     setOs(detectOS());
   }, []);
 
