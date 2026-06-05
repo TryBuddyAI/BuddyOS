@@ -2,6 +2,7 @@
 
 import dynamic from "next/dynamic";
 import { MagneticButton } from "@/components/UI/MagneticButton";
+import { ScrambleText } from "@/components/UI/ScrambleText";
 import { motion } from "motion/react";
 import { Zap, Sparkles, EyeOff, Play } from "lucide-react";
 
@@ -9,6 +10,31 @@ const HeroScene = dynamic(
   () => import("./HeroScene").then((m) => m.HeroScene),
   { ssr: false },
 );
+
+/**
+ * The headline, broken into words so each can rise behind an overflow mask.
+ * `accent` words get the green gradient sweep.
+ */
+const HEADLINE: { word: string; accent?: boolean }[] = [
+  { word: "Your" },
+  { word: "AI," },
+  { word: "always" },
+  { word: "within" },
+  { word: "reach", accent: true },
+  { word: "." },
+];
+
+const wordReveal = {
+  hidden: { y: "110%" },
+  show: (i: number) => ({
+    y: "0%",
+    transition: {
+      duration: 0.9,
+      delay: 0.35 + i * 0.08,
+      ease: [0.16, 1, 0.3, 1] as [number, number, number, number],
+    },
+  }),
+};
 
 const inlineFeatures = [
   {
@@ -53,19 +79,35 @@ export function Hero() {
               className="eyebrow inline-flex w-fit items-center gap-2 rounded-full border border-[rgba(0,217,126,0.3)] bg-[rgba(0,217,126,0.06)] px-3 py-1.5"
             >
               <span className="brand-dot !w-1.5 !h-1.5" />
-              DESKTOP AI · NOW IN ALPHA
+              <ScrambleText
+                text="DESKTOP AI · NOW IN ALPHA"
+                startDelay={500}
+                speed={22}
+              />
             </motion.span>
 
-            <motion.h1
-              initial={{ opacity: 0, y: 14 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.7, delay: 0.35 }}
-              className="headline mt-6 text-[clamp(48px,7vw,84px)]"
-            >
-              Your AI,
-              <br />
-              always within reach.
-            </motion.h1>
+            <h1 className="display mt-6 text-[clamp(52px,7.5vw,92px)]">
+              {HEADLINE.map(({ word, accent }, i) => (
+                <span
+                  key={`${word}-${i}`}
+                  className="mr-[0.22em] inline-block overflow-hidden align-bottom"
+                  style={{ paddingBottom: "0.08em" }}
+                >
+                  <motion.span
+                    className={
+                      "inline-block" +
+                      (accent ? " text-gradient-accent" : "")
+                    }
+                    custom={i}
+                    variants={wordReveal}
+                    initial="hidden"
+                    animate="show"
+                  >
+                    {word}
+                  </motion.span>
+                </span>
+              ))}
+            </h1>
 
             <motion.p
               initial={{ opacity: 0, y: 8 }}

@@ -1,6 +1,7 @@
 import { Nav } from "@/components/Layout/Nav";
 import { Hero } from "@/components/Hero/Hero";
 import { Marquee } from "@/components/Layout/Marquee";
+import { BentoFeatures } from "@/components/Sections/BentoFeatures";
 import { HowItWorks } from "@/components/Sections/HowItWorks";
 import { ChatDemo } from "@/components/Sections/ChatDemo";
 import { Pricing } from "@/components/Sections/Pricing";
@@ -13,6 +14,7 @@ export default function Home() {
       <Nav />
       <Hero />
       <Marquee />
+      <BentoFeatures />
       <HowItWorks />
       <ChatDemo />
       <Pricing />

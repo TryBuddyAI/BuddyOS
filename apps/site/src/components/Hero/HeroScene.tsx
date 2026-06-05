@@ -1,7 +1,7 @@
 "use client";
 
 import { Canvas } from "@react-three/fiber";
-import { Cloud, Clouds, Sky, Stars } from "@react-three/drei";
+import { Cloud, Clouds, Stars } from "@react-three/drei";
 import {
   Bloom,
   ChromaticAberration,
@@ -74,7 +74,7 @@ function DriftingClouds() {
           segments={32}
           bounds={[8, 2, 2]}
           volume={6}
-          color="#F8F4E8"
+          color="#16202B"
           position={[0, 2, -3]}
         />
         <Cloud
@@ -82,7 +82,7 @@ function DriftingClouds() {
           segments={32}
           bounds={[6, 2, 2]}
           volume={5}
-          color="#FFE4C4"
+          color="#0F2A22"
           position={[-4, 1, -2]}
         />
         <Cloud
@@ -90,7 +90,7 @@ function DriftingClouds() {
           segments={32}
           bounds={[7, 2, 2]}
           volume={6}
-          color="#F0E8DA"
+          color="#121A24"
           position={[5, 0.5, -4]}
         />
         <Cloud
@@ -98,7 +98,7 @@ function DriftingClouds() {
           segments={32}
           bounds={[5, 1.5, 2]}
           volume={4}
-          color="#FFFFFF"
+          color="#1B2733"
           position={[-2, 3, -5]}
         />
         <Cloud
@@ -106,7 +106,7 @@ function DriftingClouds() {
           segments={32}
           bounds={[6, 1.5, 2]}
           volume={5}
-          color="#FFE4C4"
+          color="#0E241D"
           position={[3, 2.5, -6]}
         />
       </Clouds>
@@ -136,33 +136,28 @@ export function HeroScene() {
       onCreated={({ gl, scene }) => {
         gl.toneMapping = THREE.ACESFilmicToneMapping;
         gl.outputColorSpace = THREE.SRGBColorSpace;
-        scene.fog = new THREE.Fog("#2D3550", 8, 28);
+        // Dark, deep atmosphere — let the canvas color own the scene so the
+        // glassmorphic text stays legible and BUDDY's green glow pops.
+        scene.background = new THREE.Color("#0B0F14");
+        scene.fog = new THREE.Fog("#0B0F14", 7, 24);
         // Signal the loading gate that the WebGL canvas is alive.
         if (typeof window !== "undefined") {
           window.dispatchEvent(new Event("buddy-canvas-ready"));
         }
       }}
     >
-      <hemisphereLight args={["#B8D4FF", "#FFC18C", 0.6]} />
+      {/* Dim, cool ambient so the clouds read as dark storm forms. */}
+      <hemisphereLight args={["#1A2A3A", "#05080C", 0.5]} />
       <directionalLight
-        color="#FFE8C4"
-        intensity={1.2}
+        color="#5EFFB0"
+        intensity={0.5}
         position={[5, 10, 5]}
       />
-      <pointLight color="#00D97E" intensity={0.4} position={[-3, 2, 3]} />
+      {/* Brand-green key light rims BUDDY + the cloud undersides. */}
+      <pointLight color="#00D97E" intensity={1.1} position={[-3, 2, 3]} />
+      <pointLight color="#00D97E" intensity={0.5} position={[4, -1, 2]} />
 
-      <Sky
-        distance={450000}
-        sunPosition={[2, 1.5, -8]}
-        inclination={0.49}
-        azimuth={0.25}
-        mieCoefficient={0.005}
-        mieDirectionalG={0.8}
-        rayleigh={1.5}
-        turbidity={6}
-      />
-
-      <Stars radius={40} depth={30} count={1500} factor={3.2} saturation={0} fade speed={0.4} />
+      <Stars radius={40} depth={30} count={1800} factor={3.4} saturation={0} fade speed={0.4} />
 
       <Suspense fallback={null}>
         <DriftingClouds />

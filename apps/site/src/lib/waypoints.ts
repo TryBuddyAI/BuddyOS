@@ -23,7 +23,7 @@ export const waypoints: Waypoint[] = [
   },
   {
     id: "marquee",
-    scrollProgress: 0.12,
+    scrollProgress: 0.18,
     sectionId: "marquee",
     anchor: { x: 0.92, y: 0.85 },
     mobileAnchor: { x: 0.85, y: 0.9 },
@@ -33,8 +33,25 @@ export const waypoints: Waypoint[] = [
     mood: "idle",
   },
   {
+    // Bento features grid is full-width, so BUDDY tucks small into the
+    // top-right corner above the grid (near the section header whitespace)
+    // rather than parking over the cells.
+    id: "features",
+    scrollProgress: 0.42,
+    sectionId: "features",
+    anchor: { x: 0.9, y: 0.16 },
+    mobileAnchor: { x: 0.84, y: 0.1 },
+    scale: 0.34,
+    mobileScale: 0.3,
+    message: "This part? I built it myself.",
+    messageDelay: 700,
+    messageDuration: 3800,
+    transitionIn: "glide",
+    mood: "speaking",
+  },
+  {
     id: "how-intro",
-    scrollProgress: 0.28,
+    scrollProgress: 0.72,
     sectionId: "how",
     anchor: { x: 0.92, y: 0.5 },
     mobileAnchor: { x: 0.85, y: 0.85 },
@@ -48,7 +65,7 @@ export const waypoints: Waypoint[] = [
   },
   {
     id: "demo",
-    scrollProgress: 0.52,
+    scrollProgress: 0.87,
     sectionId: "demo",
     anchor: { x: 0.92, y: 0.5 },
     mobileAnchor: { x: 0.85, y: 0.85 },
@@ -62,7 +79,7 @@ export const waypoints: Waypoint[] = [
   },
   {
     id: "pricing",
-    scrollProgress: 0.74,
+    scrollProgress: 0.94,
     sectionId: "pricing",
     anchor: { x: 0.92, y: 0.5 },
     mobileAnchor: { x: 0.85, y: 0.85 },
@@ -76,7 +93,7 @@ export const waypoints: Waypoint[] = [
   },
   {
     id: "final",
-    scrollProgress: 0.88,
+    scrollProgress: 0.99,
     sectionId: "final",
     anchor: { x: 0.92, y: 0.85 },
     mobileAnchor: { x: 0.85, y: 0.9 },

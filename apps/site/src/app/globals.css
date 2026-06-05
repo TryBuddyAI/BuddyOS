@@ -25,6 +25,7 @@
   --color-text-faint: var(--text-faint);
   --font-sans: var(--font-inter);
   --font-mono: var(--font-jetbrains);
+  --font-display: var(--font-space);
 }
 
 html, body {
@@ -89,10 +90,32 @@ body {
   }
 
   .headline {
-    font-family: var(--font-inter), system-ui, sans-serif;
+    font-family: var(--font-space), var(--font-inter), system-ui, sans-serif;
     font-weight: 700;
     letter-spacing: -0.02em;
     line-height: 1.05;
+  }
+
+  /* Display — the big experimental type. Space Grotesk, tight tracking. */
+  .display {
+    font-family: var(--font-space), var(--font-inter), system-ui, sans-serif;
+    font-weight: 700;
+    letter-spacing: -0.035em;
+    line-height: 0.98;
+  }
+
+  /* Accent gradient text — green-to-mint sweep for keywords. */
+  .text-gradient-accent {
+    background: linear-gradient(
+      105deg,
+      var(--accent) 0%,
+      #5effb0 45%,
+      #a5ffd9 100%
+    );
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    color: transparent;
   }
 
   /* Focus ring (accessible, only on keyboard nav) */
@@ -176,4 +199,136 @@ body {
   margin-left: 2px;
   background: var(--accent);
   animation: stream-cursor 1s steps(2, end) infinite;
+}
+
+/* ============================================================
+   Custom cursor — hide the native one once JS takes over.
+   Only applied on pointer-fine, non-reduced-motion devices.
+   ============================================================ */
+html.has-custom-cursor,
+html.has-custom-cursor * {
+  cursor: none !important;
+}
+
+/* ============================================================
+   Aurora atmosphere — drifting light blooms behind everything.
+   ============================================================ */
+.aurora-blob {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(90px);
+  opacity: 0.5;
+  will-change: transform;
+}
+.aurora-blob--1 {
+  top: -10%;
+  left: -5%;
+  width: 50vw;
+  height: 50vw;
+  max-width: 720px;
+  max-height: 720px;
+  background: radial-gradient(
+    circle at 50% 50%,
+    rgba(0, 217, 126, 0.42),
+    transparent 65%
+  );
+  animation: aurora-drift-1 26s ease-in-out infinite;
+}
+.aurora-blob--2 {
+  top: 30%;
+  right: -10%;
+  width: 46vw;
+  height: 46vw;
+  max-width: 660px;
+  max-height: 660px;
+  background: radial-gradient(
+    circle at 50% 50%,
+    rgba(94, 255, 176, 0.28),
+    transparent 65%
+  );
+  animation: aurora-drift-2 32s ease-in-out infinite;
+}
+.aurora-blob--3 {
+  bottom: -15%;
+  left: 25%;
+  width: 44vw;
+  height: 44vw;
+  max-width: 600px;
+  max-height: 600px;
+  background: radial-gradient(
+    circle at 50% 50%,
+    rgba(255, 107, 53, 0.16),
+    transparent 65%
+  );
+  animation: aurora-drift-3 38s ease-in-out infinite;
+}
+@keyframes aurora-drift-1 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(8vw, 6vh) scale(1.15); }
+}
+@keyframes aurora-drift-2 {
+  0%, 100% { transform: translate(0, 0) scale(1.1); }
+  50% { transform: translate(-7vw, 5vh) scale(0.9); }
+}
+@keyframes aurora-drift-3 {
+  0%, 100% { transform: translate(0, 0) scale(0.95); }
+  50% { transform: translate(5vw, -6vh) scale(1.2); }
+}
+/* Subtle film grain to kill banding on the blurred gradients. */
+.aurora-grain {
+  position: absolute;
+  inset: 0;
+  opacity: 0.04;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+@media (prefers-reduced-motion: reduce) {
+  .aurora-blob {
+    animation: none !important;
+    opacity: 0.32;
+  }
+}
+
+/* ============================================================
+   Bento cards — glass base + cursor-follow spotlight + edge glow
+   ============================================================ */
+.bento-card {
+  background: rgba(26, 31, 46, 0.5);
+  backdrop-filter: blur(18px) saturate(160%);
+  -webkit-backdrop-filter: blur(18px) saturate(160%);
+  border: 1px solid var(--border-strong);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    0 18px 40px -22px rgba(0, 0, 0, 0.7);
+  transition:
+    border-color 0.3s ease,
+    box-shadow 0.3s ease;
+  will-change: transform;
+}
+.bento-card:hover {
+  border-color: rgba(0, 217, 126, 0.35);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 24px 60px -24px rgba(0, 217, 126, 0.25);
+}
+.bento-spotlight {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  opacity: 0;
+  transition: opacity 0.35s ease;
+  background: radial-gradient(
+    420px circle at var(--mx, 50%) var(--my, 50%),
+    rgba(0, 217, 126, 0.16),
+    transparent 60%
+  );
+}
+.bento-card:hover .bento-spotlight {
+  opacity: 1;
+}
+@media (prefers-reduced-transparency: reduce) {
+  .bento-card {
+    background: var(--surface);
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
 }
