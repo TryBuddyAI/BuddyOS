@@ -1,7 +1,7 @@
 "use client";
 
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
-import { Environment } from "@react-three/drei";
+import { Environment, Lightformer } from "@react-three/drei";
 import { Suspense, useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { useCompanion } from "@/lib/companionStore";
@@ -106,15 +106,45 @@ export function CompanionStage() {
           gl.outputColorSpace = THREE.SRGBColorSpace;
         }}
       >
-        <hemisphereLight args={["#B8D4FF", "#FFC18C", 0.7]} />
+        {/* Cool, brand-aligned key/fill so the glass reads emerald, not warm. */}
+        <hemisphereLight args={["#2A3A4A", "#05080C", 0.6]} />
         <directionalLight
-          color="#FFE8C4"
-          intensity={1.0}
+          color="#CFFFE9"
+          intensity={0.9}
           position={[3, 4, 5]}
         />
-        <pointLight color="#00D97E" intensity={0.45} position={[-2, 1, 3]} />
+        <pointLight color="#00D97E" intensity={0.7} position={[-2, 1, 3]} />
+        <pointLight color="#5EFFB0" intensity={0.4} position={[3, -1, 2]} />
+        {/* Procedural green "studio" environment — gives the glass clean,
+            on-brand reflections with no CDN HDR dependency. Renders once. */}
         <Suspense fallback={null}>
-          <Environment preset="sunset" background={false} />
+          <Environment resolution={256} frames={1}>
+            <color attach="background" args={["#05080C"]} />
+            <Lightformer
+              intensity={2.2}
+              color="#A5FFD9"
+              position={[0, 2.5, 4]}
+              scale={[7, 7, 1]}
+            />
+            <Lightformer
+              intensity={1.4}
+              color="#00D97E"
+              position={[-4, 0, 2]}
+              scale={[4, 9, 1]}
+            />
+            <Lightformer
+              intensity={1.1}
+              color="#FFFFFF"
+              position={[3.5, 1.5, 3]}
+              scale={[2.5, 2.5, 1]}
+            />
+            <Lightformer
+              intensity={0.8}
+              color="#00D97E"
+              position={[0, -3, 2]}
+              scale={[9, 3, 1]}
+            />
+          </Environment>
         </Suspense>
         <CompanionBuddy />
       </Canvas>

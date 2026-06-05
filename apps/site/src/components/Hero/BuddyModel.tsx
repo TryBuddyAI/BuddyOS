@@ -54,18 +54,19 @@ function makeBlobGeometry(radius: number, detail: number) {
   for (let i = 0; i < pos.count; i++) {
     v.fromBufferAttribute(pos, i);
     const p = v.clone().normalize();
-    // Organic lumps (sum of sines on the direction vector).
+    // Organic lumps (sum of sines on the direction vector). Gentler than a
+    // raw noise field so the silhouette reads as smooth liquid glass, not a
+    // faceted gem — low-frequency swells only.
     let d = 0;
-    d += 0.06 * Math.sin(2.3 * p.x + 1.7 * p.y);
-    d += 0.045 * Math.sin(3.1 * p.y + 2.2 * p.z + 0.5);
-    d += 0.035 * Math.sin(2.7 * p.z + 1.9 * p.x + 1.1);
-    d += 0.022 * Math.sin(5.0 * p.x * p.y + 3.0);
+    d += 0.042 * Math.sin(2.0 * p.x + 1.7 * p.y);
+    d += 0.03 * Math.sin(2.6 * p.y + 1.9 * p.z + 0.5);
+    d += 0.022 * Math.sin(2.3 * p.z + 1.7 * p.x + 1.1);
     // Flatten the front face zone so eyes/mouth sit on smooth glass.
     const faceMask =
       1 - THREE.MathUtils.smoothstep(p.z, 0.35, 0.95) * 0.72;
     d *= faceMask;
     // Droplet bias: pull the bottom down into a soft heavy base.
-    const droplet = p.y < 0 ? -0.12 * Math.pow(-p.y, 1.6) : 0.02 * p.y;
+    const droplet = p.y < 0 ? -0.1 * Math.pow(-p.y, 1.6) : 0.02 * p.y;
     const r = radius * (1 + d);
     v.copy(p)
       .multiplyScalar(r)
@@ -95,6 +96,17 @@ export function BuddyModel({
   const tier = useQualityTier();
   const mood = useMood();
 
+  // Autonomous personality state (mutated by schedulers, read in useFrame).
+  // hop.t0 = clock time a hop began (null = grounded); look = a transient
+  // glance offset layered on top of cursor tracking.
+  const hop = useRef<{ t0: number | null; clock: number }>({
+    t0: null,
+    clock: 0,
+  });
+  const look = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+  const warmColor = useMemo(() => new THREE.Color("#FFD24A"), []);
+  const coolColor = useMemo(() => new THREE.Color("#00D97E"), []);
+
   // Blink scheduler
   useEffect(() => {
     let cancelled = false;
@@ -123,6 +135,53 @@ export function BuddyModel({
       }, 110);
     };
 
+    schedule();
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, []);
+
+  // Hop scheduler — every so often BUDDY does a little excited bounce.
+  useEffect(() => {
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout>;
+    const schedule = () => {
+      const delay = 7000 + Math.random() * 7000;
+      timer = setTimeout(() => {
+        if (cancelled) return;
+        // Mark the hop start using the last-seen clock time from useFrame.
+        hop.current.t0 = hop.current.clock;
+        schedule();
+      }, delay);
+    };
+    schedule();
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, []);
+
+  // Look-around scheduler — occasional curious glance off to one side.
+  useEffect(() => {
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout>;
+    const schedule = () => {
+      const delay = 4500 + Math.random() * 5000;
+      timer = setTimeout(() => {
+        if (cancelled) return;
+        look.current.x = (Math.random() - 0.5) * 0.05;
+        look.current.y = (Math.random() - 0.5) * 0.03;
+        // Return the gaze forward after a brief beat.
+        setTimeout(() => {
+          if (!cancelled) {
+            look.current.x = 0;
+            look.current.y = 0;
+          }
+        }, 700 + Math.random() * 500);
+        schedule();
+      }, delay);
+    };
     schedule();
     return () => {
       cancelled = true;
@@ -170,23 +229,45 @@ export function BuddyModel({
 
   useFrame((state) => {
     const t = state.clock.elapsedTime;
+    hop.current.clock = t;
+
+    // Resolve the current hop (a little excited bounce with squash/stretch).
+    let hopY = 0;
+    let hopSquash = 0; // +mid-air stretch, -on takeoff/landing squish
+    let hopExcite = 0; // 0..1, drives the antenna flicker
+    if (hop.current.t0 != null) {
+      const dur = 0.78;
+      const p = (t - hop.current.t0) / dur;
+      if (p >= 1) {
+        hop.current.t0 = null;
+      } else {
+        const arc = Math.sin(p * Math.PI);
+        hopY = arc * 0.2;
+        hopExcite = arc;
+        hopSquash = arc * 0.1 - (p < 0.14 || p > 0.86 ? 0.07 : 0);
+      }
+    }
 
     if (group.current && mood !== "dissolving" && mood !== "assembling") {
       const bob = Math.sin(t * 1.2) * 0.04;
       const breath = 1 + Math.sin(t * 0.8) * 0.018;
-      group.current.position.y = bob;
+      group.current.position.y = bob + hopY;
       group.current.scale.setScalar(breath * baseScale);
+      // Gentle living head-tilt sway.
+      group.current.rotation.z = Math.sin(t * 0.5) * 0.03;
     } else if (group.current) {
       group.current.scale.setScalar(baseScale);
     }
 
     // Gel wobble — squash/stretch the body on two axes out of phase so it
-    // jiggles like jelly. Cheap (scale only, no geometry churn).
+    // jiggles like jelly, plus the hop's stretch/squish. Cheap (scale only).
     if (body.current) {
       const wob = mood === "thinking" ? 0.05 : 0.03;
-      body.current.scale.x = 1 + Math.sin(t * 2.1) * wob;
-      body.current.scale.y = 1.12 + Math.sin(t * 2.1 + Math.PI) * wob;
-      body.current.scale.z = 0.95 + Math.sin(t * 1.7 + 1.0) * wob * 0.6;
+      body.current.scale.x = 1 + Math.sin(t * 2.1) * wob - hopSquash * 0.5;
+      body.current.scale.y =
+        1.12 + Math.sin(t * 2.1 + Math.PI) * wob + hopSquash;
+      body.current.scale.z =
+        0.95 + Math.sin(t * 1.7 + 1.0) * wob * 0.6 - hopSquash * 0.5;
     }
 
     // Nebula core: breathe + brighten when thinking.
@@ -201,16 +282,19 @@ export function BuddyModel({
 
     if (cursorTracking && pupilL.current && pupilR.current) {
       const maxOffset = 0.03;
-      const targetX = THREE.MathUtils.clamp(
-        mouse.x * viewport.width * 0.04,
-        -maxOffset,
-        maxOffset,
-      );
-      const targetY = THREE.MathUtils.clamp(
-        mouse.y * viewport.height * 0.04,
-        -maxOffset * 0.8,
-        maxOffset * 0.8,
-      );
+      // Cursor gaze + the occasional autonomous glance.
+      const targetX =
+        THREE.MathUtils.clamp(
+          mouse.x * viewport.width * 0.04,
+          -maxOffset,
+          maxOffset,
+        ) + look.current.x;
+      const targetY =
+        THREE.MathUtils.clamp(
+          mouse.y * viewport.height * 0.04,
+          -maxOffset * 0.8,
+          maxOffset * 0.8,
+        ) + look.current.y;
       const lerp = 0.12;
       pupilL.current.position.x = THREE.MathUtils.lerp(
         pupilL.current.position.x,
@@ -238,8 +322,9 @@ export function BuddyModel({
       if (mood === "waving") {
         antennaGroup.current.rotation.z = Math.sin(t * 5) * 0.4;
       } else {
-        // Springy idle sway.
-        antennaGroup.current.rotation.z = Math.sin(t * 0.9) * 0.06;
+        // Springy idle sway, with an extra wag during a hop.
+        antennaGroup.current.rotation.z =
+          Math.sin(t * 0.9) * 0.06 + Math.sin(t * 9) * 0.12 * hopExcite;
       }
     }
 
@@ -248,7 +333,11 @@ export function BuddyModel({
       const base = mood === "thinking" ? 1.3 : 0.95;
       const amp = mood === "thinking" ? 0.4 : 0.18;
       mat.emissiveIntensity =
-        base + Math.sin(t * (mood === "thinking" ? 3 : 1.6)) * amp;
+        base +
+        Math.sin(t * (mood === "thinking" ? 3 : 1.6)) * amp +
+        hopExcite * 1.2;
+      // Flick the pilot light warm-yellow at the peak of an excited hop.
+      mat.emissive.copy(coolColor).lerp(warmColor, hopExcite * 0.8);
     }
   });
 
